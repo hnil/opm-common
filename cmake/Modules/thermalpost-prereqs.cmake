@@ -18,5 +18,6 @@ set (thermalpost_DEPS
 	"opm-common REQUIRED;
 	opm-flowdiagnostics REQUIRED;
 	opm-core REQUIRED;
-  opm-flowdiagnostics-applications REQUIRED"
+        opm-flowdiagnostics-applications REQUIRED;
+        opm-simulators REQUIRED"
 	)
