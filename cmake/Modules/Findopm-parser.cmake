@@ -43,6 +43,7 @@ else ()
     "${PROJECT_BINARY_DIR}/../../opm-parser/${BUILD_DIR_SUFFIX}")
 endif ()
 
+Message (STATUS "_opm_parser_build = ${_opm_parser_build}")
 
 find_package(opm-parser CONFIG HINTS ${_opm_parser_build})
 if (opm-parser_FOUND)
