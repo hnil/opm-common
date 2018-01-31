@@ -86,7 +86,9 @@ macro (opm_compile_satellites opm satellite excl_all test_regexp)
 	  foreach (_regexp IN ITEMS ${test_regexp})
 		if ("${_sat_NAME}" MATCHES "${_regexp}")
 		  string (REGEX REPLACE "${_regexp}" "\\1" _sat_FANCY "${_sat_NAME}")
-		endif ("${_sat_NAME}" MATCHES "${_regexp}")
+		else()
+		  set(_sat_FANCY ${_sat_NAME})
+		endif()
 	  endforeach (_regexp)
 	  get_target_property (_sat_LOC ${_sat_NAME} LOCATION)
           # Run tests through mpi-run. Ubuntu 14.04 provided mpi libs will crash
@@ -267,7 +269,7 @@ macro(opm_add_test TestName)
 
   # the libraries to link against
   if (NOT CURTEST_LIBRARIES)
-    SET(CURTEST_LIBRARIES "${${CMAKE_PROJECT_NAME}_LIBRARIES}")
+    SET(CURTEST_LIBRARIES "${${project}_LIBRARIES}")
   endif()
 
   # determine if the test should be completely ignored, i.e., the
@@ -289,6 +291,9 @@ macro(opm_add_test TestName)
       add_executable("${CURTEST_EXE_NAME}" ${CURTEST_EXCLUDE_FROM_ALL} ${CURTEST_SOURCES})
       target_link_libraries (${CURTEST_EXE_NAME} ${CURTEST_LIBRARIES})
 
+      if(TARGET ${project}_prepare)
+        add_dependencies("${CURTEST_EXE_NAME}" ${project}_prepare)
+      endif()
       if(CURTEST_DEPENDS)
         add_dependencies("${CURTEST_EXE_NAME}" ${CURTEST_DEPENDS})
       endif()
@@ -302,6 +307,9 @@ macro(opm_add_test TestName)
 
         if(CURTEST_DEPENDS)
           add_dependencies("${CURTEST_EXE_NAME}" ${CURTEST_DEPENDS})
+        endif()
+        if(TARGET ${project}_prepare)
+          add_dependencies("${CURTEST_EXE_NAME}" ${project}_prepare)
         endif()
       endif()
 

@@ -56,6 +56,9 @@ function (configure_cmake_file name variant version)
 	set (opm-project_${suffix} "${${name}_${suffix}}")
   endforeach (suffix)
   set (opm-project_NAME "${${name}_NAME}")
+  set (opm-project_NAME_UC "${${name}_NAME}")
+  string(TOUPPER "${opm-project_NAME}" opm-project_NAME_UC)
+  string(REPLACE "-" "_" opm-project_NAME_UC "${opm-project_NAME_UC}")
 
   # make the file substitutions
   configure_file (
@@ -74,6 +77,7 @@ function (opm_cmake_config name)
 
   # write configuration file to locate library
   set(OPM_PROJECT_EXTRA_CODE ${OPM_PROJECT_EXTRA_CODE_INTREE})
+  set(PREREQ_LOCATION "${PROJECT_SOURCE_DIR}")
   configure_cmake_file (${name} "config" "")
   configure_cmake_file (${name} "config" "-version")
   configure_vars (
@@ -111,6 +115,7 @@ function (opm_cmake_config name)
   # create a config mode file which targets the install directory instead
   # of the build directory (using the same input template)
   set(OPM_PROJECT_EXTRA_CODE ${OPM_PROJECT_EXTRA_CODE_INSTALLED})
+  set(PREREQ_LOCATION "${CMAKE_INSTALL_PREFIX}/share/opm/cmake/Modules")
   configure_cmake_file (${name} "install" "")
   configure_vars (
 	FILE CMAKE "${PROJECT_BINARY_DIR}/${${name}_NAME}-install.cmake"
@@ -144,7 +149,7 @@ function (opm_cmake_config name)
   if (${name}_TARGET)
 	set (_pkg_dir ${CMAKE_INSTALL_LIBDIR})
   else ()
-	set (_pkg_dir ${LIBDIR_MULTIARCH_UNAWARE})
+	set (_pkg_dir lib)
   endif ()
   install (
 	FILES ${PROJECT_BINARY_DIR}/${${name}_NAME}-install.pc
