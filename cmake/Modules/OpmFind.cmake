@@ -171,10 +171,16 @@ macro (find_and_append_package_to prefix name)
           set(ecl_FOUND 1)
           set(HAVE_ERT 1)
         endif()
+
       elseif(_${name}_exempted LESS 0 AND NOT _is_opm)
         find_package (${name} ${ARGN})
+        if(TARGET amgcl::amgcl)
+            # Need to grab from target to enable transitional depends
+            get_target_property(amgcl_INCLUDE_DIRS amgcl::amgcl INTERFACE_INCLUDE_DIRECTORIES)
+         endif()
       elseif(_${name}_exempted GREATER -1)
         find_package (${name} ${ARGN})
+
       else()
         if(${name}_DIR)
           find_package (${name} ${${prefix}_VERSION_MAJOR}.${${prefix}_VERSION_MINOR} ${ARGN} NO_MODULE PATHS ${${name}_DIR} NO_DEFAULT_PATH)
