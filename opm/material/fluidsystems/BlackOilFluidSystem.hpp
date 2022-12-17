@@ -522,14 +522,16 @@ protected:
 
 public:
     //! \brief Returns the number of active fluid phases (i.e., usually three)
-    static unsigned numActivePhases()
-    { return numActivePhases_; }
+    static constexpr unsigned numActivePhases()
+    { return 3;//numActivePhases_;
+    }
 
     //! \brief Returns whether a fluid phase is active
-    static unsigned phaseIsActive(unsigned phaseIdx)
+    static constexpr bool phaseIsActive(unsigned phaseIdx)
     {
         assert(phaseIdx < numPhases);
-        return phaseIsActive_[phaseIdx];
+        return true;
+        //return phaseIsActive_[phaseIdx];
     }
 
     //! \brief returns the index of "primary" component of a phase (solvent)
@@ -1525,13 +1527,15 @@ public:
 
     static short activeToCanonicalPhaseIdx(unsigned activePhaseIdx) {
         assert(activePhaseIdx<numActivePhases());
-        return activeToCanonicalPhaseIdx_[activePhaseIdx];
+        return activePhaseIdx;
+        //return activeToCanonicalPhaseIdx_[activePhaseIdx];
     }
 
     static short canonicalToActivePhaseIdx(unsigned phaseIdx) {
         assert(phaseIdx<numPhases);
         assert(phaseIsActive(phaseIdx));
-        return canonicalToActivePhaseIdx_[phaseIdx];
+        return phaseIdx;
+        //return canonicalToActivePhaseIdx_[phaseIdx];
     }
 
     //! \copydoc BaseFluidSystem::diffusionCoefficient
