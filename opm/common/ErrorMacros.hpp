@@ -20,7 +20,10 @@
 */
 #ifndef OPM_ERRORMACROS_HPP
 #define OPM_ERRORMACROS_HPP
-
+//#include "tracy/Tracy.hpp"
+#ifndef OPM_TIME_BLOCK 
+#define OPM_TIME_BLOCK(blockname)
+#endif 
 #include <opm/common/OpmLog/OpmLog.hpp>
 
 #include <string>
