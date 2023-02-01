@@ -269,6 +269,19 @@ public:
         return y0 + (y1 - y0)*(x - x0)/(x1 - x0);
     }
 
+    template <class Evaluation>
+    Evaluation eval(const Evaluation& x, size_t segIdx) const
+    {
+        Scalar x0 = xValues_[segIdx];
+        Scalar x1 = xValues_[segIdx + 1];
+
+        Scalar y0 = yValues_[segIdx];
+        Scalar y1 = yValues_[segIdx + 1];
+
+        return y0 + (y1 - y0)*(x - x0)/(x1 - x0);
+    }
+
+    
     /*!
      * \brief Evaluate the spline's derivative at a given position.
      *
@@ -451,7 +464,7 @@ public:
                yValues_ == data.yValues_;
     }
 
-private:
+//private:
     template <class Evaluation>
     size_t findSegmentIndex_(const Evaluation& x, bool extrapolate = false) const
     {
@@ -512,7 +525,7 @@ private:
             return lowerIdx;
         }
     }
-
+private:
     template <class Evaluation>
     Evaluation evalDerivative_(const Evaluation& x, size_t segIdx) const
     {

@@ -254,6 +254,19 @@ public:
                                   const Evaluation& pressure) const
     { OPM_GAS_PVT_MULTIPLEXER_CALL(return pvtImpl.saturatedViscosity(regionIdx, temperature, pressure)); return 0; }
 
+    // template <class Evaluation = Scalar>
+    // Evaluation saturatedinvMuB(unsigned regionIdx,
+    //                            const Evaluation& temperature,
+    //                            const Evaluation& pressure) const
+    // { OPM_GAS_PVT_MULTIPLEXER_CALL(return pvtImpl.saturatedinvMuB(regionIdx, temperature, pressure)); return 0; }
+
+
+    // template <class Evaluation = Scalar>
+    // Evaluation invMuB(unsigned regionIdx,
+    //                   const Evaluation& temperature,
+    //                   const Evaluation& pressure) const
+    // { OPM_GAS_PVT_MULTIPLEXER_CALL(return pvtImpl.invMuB(regionIdx, temperature, pressure)); return 0; }
+
     /*!
      * \brief Returns the formation volume factor [-] of the fluid phase.
      */

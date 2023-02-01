@@ -491,6 +491,29 @@ public:
         return invBg/invMugBg;
     }
 
+        template <class Evaluation>
+    Evaluation invMuB(unsigned regionIdx,
+                         const Evaluation& /*temperature*/,
+                         const Evaluation& pressure,
+                         const Evaluation& Rv,
+                         const Evaluation& /*Rvw*/) const
+    {
+        const Evaluation& invMugBg = inverseGasBMu_[regionIdx].eval(pressure, Rv, /*extrapolate=*/true);
+        return invMugBg;
+    }
+
+    
+    template <class Evaluation>
+    Evaluation saturatedinvMuB(unsigned regionIdx,
+                               const Evaluation& /*temperature*/,
+                               const Evaluation& pressure) const
+    {
+        //const Evaluation& invBg = inverseSaturatedGasB_[regionIdx].eval(pressure, /*extrapolate=*/true);
+        const Evaluation& invMugBg = inverseSaturatedGasBMu_[regionIdx].eval(pressure, /*extrapolate=*/true);
+
+        return invMugBg;
+    }
+    
     /*!
      * \brief Returns the dynamic viscosity [Pa s] of oil saturated gas at a given pressure.
      */

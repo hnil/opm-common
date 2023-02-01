@@ -327,7 +327,7 @@ public:
     const std::vector<TabulatedOneDFunction>& gasMu() const
     { return gasMu_; }
 
-    const std::vector<TabulatedOneDFunction> inverseGasBMu() const
+    const std::vector<TabulatedOneDFunction>& inverseGasBMu() const
     { return inverseGasBMu_; }
 
     bool operator==(const DryGasPvt<Scalar>& data) const

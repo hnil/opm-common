@@ -210,6 +210,30 @@ public:
     static Evaluation twoPhaseSatKrnInv(const Params& params, const Evaluation& krn)
     { return eval_(params.krnSamples(), params.SwKrnSamples(), krn); }
 
+    template <class Evaluation>
+    static size_t findSegmentIndex(const ValueVector& xValues, const Evaluation& x){
+        return findSegmentIndex_(xValues, scalarValue(x));
+        //return findSegmentIndex_(xValues, x);
+    }
+    template <class Evaluation>
+    static size_t findSegmentIndexDescending(const ValueVector& xValues, const Evaluation& x){
+        return findSegmentIndexDescending_(xValues, scalarValue(x));
+    }
+    
+    template <class Evaluation>
+    static Evaluation eval(const ValueVector& xValues, const ValueVector& yValues, const Evaluation& x, unsigned segIdx){
+        Scalar x0 = xValues[segIdx];
+        Scalar x1 = xValues[segIdx + 1];
+
+        Scalar y0 = yValues[segIdx];
+        Scalar y1 = yValues[segIdx + 1];
+
+        Scalar m = (y1 - y0)/(x1 - x0);
+
+        return y0 + (x - x0)*m;
+    }
+
+    
 private:
     template <class Evaluation>
     static Evaluation eval_(const ValueVector& xValues,
