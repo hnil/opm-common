@@ -31,7 +31,7 @@
 #include <stdexcept>
 
 // TODO: move this variable to config.h
-#define OPM_CHECK_PARAM_FINALIZED 1
+#define OPM_CHECK_PARAM_FINALIZED 0
 
 #if ! defined(NDEBUG) && OPM_CHECK_PARAM_FINALIZED
 #define USE_OPM_CHECK_PARAM_FINALIZED 1

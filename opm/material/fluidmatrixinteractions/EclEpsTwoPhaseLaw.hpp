@@ -246,6 +246,7 @@ public:
     template <class Evaluation>
     static Evaluation twoPhaseSatKrn(const Params& params, const Evaluation& SwScaled)
     {
+        OPM_TIME_BLOCK(twoPhaseSatKrnEclEps);
         const Evaluation SwUnscaled = scaledToUnscaledSatKrn(params, SwScaled);
         const Evaluation krnUnscaled = EffLaw::twoPhaseSatKrn(params.effectiveLawParams(), SwUnscaled);
         return unscaledToScaledKrn_(SwScaled, params, krnUnscaled);

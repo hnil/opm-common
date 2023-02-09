@@ -289,10 +289,11 @@ public:
     {
         throw std::invalid_argument("The krn(fs) method is not yet implemented");
     }
-
+    
     template <class Evaluation>
     static Evaluation twoPhaseSatKrn(const Params& params, const Evaluation& Sw)
     {
+        OPM_TIME_BLOCK(twoPhaseSatKrnEclHysteresis);
         // if no relperm hysteresis is enabled, use the drainage curve
         if (!params.config().enableHysteresis() || params.config().krHysteresisModel() < 0)
             return EffectiveLaw::twoPhaseSatKrn(params.drainageParams(), Sw);

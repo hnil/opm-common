@@ -183,7 +183,10 @@ public:
 
     template <class Evaluation>
     static Evaluation twoPhaseSatKrw(const Params& params, const Evaluation& Sw)
-    { return eval_(params.SwKrwSamples(), params.krwSamples(), Sw); }
+    {
+        OPM_TIME_BLOCK(twoPhaseSatKrwPiecewiseLinear);
+        return eval_(params.SwKrwSamples(), params.krwSamples(), Sw);
+    }
 
     template <class Evaluation>
     static Evaluation twoPhaseSatKrwInv(const Params& params, const Evaluation& krw)
@@ -204,7 +207,10 @@ public:
 
     template <class Evaluation>
     static Evaluation twoPhaseSatKrn(const Params& params, const Evaluation& Sw)
-    { return eval_(params.SwKrnSamples(), params.krnSamples(), Sw); }
+    {
+        OPM_TIME_BLOCK(twoPhaseSatKrnPiecewiseLinear);
+        return eval_(params.SwKrnSamples(), params.krnSamples(), Sw);
+    }
 
     template <class Evaluation>
     static Evaluation twoPhaseSatKrnInv(const Params& params, const Evaluation& krn)

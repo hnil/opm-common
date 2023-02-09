@@ -392,6 +392,7 @@ public:
                                           const Params& params,
                                           const FluidState& fluidState)        
     {
+        OPM_TIME_BLOCK(relativePermeabilitiesNew);
         const auto& oilwaterparams = params.oilWaterParams();
         const auto& gasoilparams = params.gasOilParams();
         const auto& gasoilparams_tab =params.gasOilParams().drainageParams().effectiveLawParams().template getRealParams<Opm::SatCurveMultiplexerApproach::PiecewiseLinear>();
@@ -477,6 +478,7 @@ public:
                                        const Params& params,
                                        const FluidState& fluidState)
     {
+        OPM_TIME_BLOCK(relativePermeabilitiesNew);
         using Evaluation = typename std::remove_reference<decltype(values[0])>::type;
 
         values[waterPhaseIdx] = krw<FluidState, Evaluation>(params, fluidState);

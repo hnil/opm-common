@@ -276,6 +276,7 @@ public:
     template <class FluidState, class Evaluation = typename FluidState::Scalar>
     static Evaluation krw(const Params& params, const FluidState& fluidstate)
     {
+        OPM_TIME_BLOCK(krwSatCurveMultiplexer);
         switch (params.approach()) {
         case SatCurveMultiplexerApproach::LET:
             return LETTwoPhaseLaw::krw(params.template getRealParams<SatCurveMultiplexerApproach::LET>(),
@@ -294,6 +295,7 @@ public:
     template <class Evaluation>
     static Evaluation twoPhaseSatKrw(const Params& params, const Evaluation& Sw)
     {
+        OPM_TIME_BLOCK(twoPhaseSatKrwSatCurveMultiplexer);
         switch (params.approach()) {
         case SatCurveMultiplexerApproach::LET:
             return LETTwoPhaseLaw::twoPhaseSatKrw(params.template getRealParams<SatCurveMultiplexerApproach::LET>(),
@@ -322,6 +324,7 @@ public:
     template <class FluidState, class Evaluation = typename FluidState::Scalar>
     static Evaluation krn(const Params& params, const FluidState& fluidstate)
     {
+        OPM_TIME_BLOCK(krnSatCurveMultiplexer);
         switch (params.approach()) {
         case SatCurveMultiplexerApproach::LET:
             return LETTwoPhaseLaw::krn(params.template getRealParams<SatCurveMultiplexerApproach::LET>(),
@@ -340,6 +343,7 @@ public:
     template <class Evaluation>
     static Evaluation twoPhaseSatKrn(const Params& params, const Evaluation& Sw)
     {
+        OPM_TIME_BLOCK(twoPhaseSatKrnSatCurveMultiplexer);
         switch (params.approach()) {
         case SatCurveMultiplexerApproach::LET:
             return LETTwoPhaseLaw::twoPhaseSatKrn(params.template getRealParams<SatCurveMultiplexerApproach::LET>(),
