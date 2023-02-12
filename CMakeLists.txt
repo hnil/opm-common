@@ -95,6 +95,7 @@ macro (config_hook)
       list(APPEND EXTRA_INCLUDES ${PROJECT_SOURCE_DIR}/external/cjson)
     endif()
 
+    list(APPEND EXTRA_INCLUDES ${Tracy_SOURCE_DIR}/public)
     # For this project
     include_directories(${EXTRA_INCLUDES} ${PROJECT_BINARY_DIR}/include)
     # For downstreams
@@ -121,6 +122,8 @@ macro (config_hook)
       set_target_properties(Boost::unit_test_framework PROPERTIES INTERFACE_COMPILE_DEFINITIONS BOOST_TEST_DYN_LINK=1)
     endif()
   endif()
+
+  #get_target_property(TRACY_INCLUDES TracyClient INCLUDE_DIRECTORIES)
 
 endmacro (config_hook)
 

@@ -20,13 +20,13 @@
 */
 #ifndef OPM_ERRORMACROS_HPP
 #define OPM_ERRORMACROS_HPP
-//#include "tracy/Tracy.hpp"
+#include "tracy/Tracy.hpp"
 //ZoneNamedN(blockname, #blockname, true);
 #ifndef OPM_TIME_BLOCK_MAIN
-#define OPM_TIME_BLOCK_MAIN(blockname) 
+#define OPM_TIME_BLOCK_MAIN(blockname)  ZoneNamedN(blockname, #blockname, true); 
 #endif
 #ifndef OPM_TIME_BLOCK
-#define OPM_TIME_BLOCK(blockname)
+#define OPM_TIME_BLOCK(blockname)  ZoneNamedN(blockname, #blockname, true); 
 #endif 
 #include <opm/common/OpmLog/OpmLog.hpp>
 
