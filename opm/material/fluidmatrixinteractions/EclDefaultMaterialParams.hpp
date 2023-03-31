@@ -63,13 +63,13 @@ public:
      * \brief The parameter object for the gas-oil twophase law.
      */
     const GasOilParams& gasOilParams() const
-    { EnsureFinalized::check(); return gasOilParams_; }
+    {  return gasOilParams_; }
 
     /*!
      * \brief The parameter object for the gas-oil twophase law.
      */
     GasOilParams& gasOilParams()
-    { EnsureFinalized::check(); return gasOilParams_; }
+    {  return gasOilParams_; }
 
     /*!
      * \brief Set the parameter object for the gas-oil twophase law.
@@ -81,13 +81,13 @@ public:
      * \brief The parameter object for the oil-water twophase law.
      */
     const OilWaterParams& oilWaterParams() const
-    { EnsureFinalized::check(); return oilWaterParams_; }
+    {  return oilWaterParams_; }
 
     /*!
      * \brief The parameter object for the oil-water twophase law.
      */
     OilWaterParams& oilWaterParams()
-    { EnsureFinalized::check(); return oilWaterParams_; }
+    {  return oilWaterParams_; }
 
     /*!
      * \brief Set the parameter object for the oil-water twophase law.
@@ -113,7 +113,7 @@ public:
      * \brief Return the saturation of "connate" water.
      */
     Scalar Swl() const
-    { EnsureFinalized::check(); return Swl_; }
+    {  return Swl_; }
 
     /*!
      * \brief Specify whether inconsistent saturations should be used to update the

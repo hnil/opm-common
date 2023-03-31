@@ -368,7 +368,13 @@ public:
             serializer(mat);
         }
     }
+    
+    void setMaterialLawParams( std::vector<MaterialLawParams> materialLawParams)
+    {
+        materialLawParams_ = materialLawParams;
+    }
 
+std::vector<MaterialLawParams> materialLawParams_;
 private:
     const MaterialLawParams& materialLawParamsFunc_(unsigned elemIdx, FaceDir::DirEnum facedir) const;
 
@@ -401,7 +407,7 @@ private:
     // this attribute only makes sense for twophase simulations!
     enum EclTwoPhaseApproach twoPhaseApproach_ = EclTwoPhaseApproach::GasOil;
 
-    std::vector<MaterialLawParams> materialLawParams_;
+
     DirectionalMaterialLawParamsPtr dirMaterialLawParams_;
 
     std::vector<int> satnumRegionArray_;

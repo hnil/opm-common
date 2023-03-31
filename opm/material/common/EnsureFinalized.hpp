@@ -45,11 +45,10 @@ namespace Opm {
  */
 class EnsureFinalized
 {
+public:
 #if USE_OPM_CHECK_PARAM_FINALIZED
     bool finalized_;
 #endif
-
-protected:
     /*!
      * \brief The default constructor.
      */
@@ -76,6 +75,13 @@ public:
     {
 #if USE_OPM_CHECK_PARAM_FINALIZED
         finalized_ = true;
+#endif
+    }
+    
+    void definalize()
+    {
+#if USE_OPM_CHECK_PARAM_FINALIZED
+        finalized_ = false;
 #endif
     }
 };
