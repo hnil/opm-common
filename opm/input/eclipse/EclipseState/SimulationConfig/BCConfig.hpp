@@ -38,8 +38,16 @@ enum class BCType {
      FREE,
      DIRICHLET,
      THERMAL
+     NONE
 };
 
+enum class BCMECHType {
+     FREE,
+     FIXED,
+     NONE
+};
+
+    
 enum class BCComponent {
      OIL,
      GAS,
@@ -58,6 +66,7 @@ public:
         int j1,j2;
         int k1,k2;
         BCType bctype;
+        BCMECHType bcmechtype;
         FaceDir::DirEnum dir;
         BCComponent component;
         double rate;
