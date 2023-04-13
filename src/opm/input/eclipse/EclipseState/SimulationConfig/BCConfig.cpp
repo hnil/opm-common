@@ -41,8 +41,24 @@ BCType bctype(const std::string& s) {
     if (s == "THERMAL")
         return BCType::THERMAL;
 
+    if (s == "NONE")
+        return BCType::NONE;
+
     throw std::invalid_argument("Not recognized boundary condition type: " + s);
 }
+
+BCMECHType bcmechtype(const std::string& s) {
+    if (s == "FREE")
+        return BCMECHType::FREE;
+
+    if (s == "FIXED")
+        return BCMECHType::FIXED;
+    
+    if (s == "NONE")
+        return BCMECHType::NONE;
+
+    throw std::invalid_argument("Not recognized boundary condition type: " + s);
+}    
 
 
 BCComponent component(const std::string& s) {
@@ -79,6 +95,7 @@ BCConfig::BCFace::BCFace(const DeckRecord& record, const GridDims& grid) :
     k1(0),
     k2(grid.getNZ() - 1),
     bctype(fromstring::bctype(record.getItem<BC::TYPE>().get<std::string>(0))),
+    bcmechtype(fromstring::bcmechtype(record.getItem<BC::MECHTYPE>().get<std::string>(0))),
     dir(FaceDir::FromString(record.getItem<BC::DIRECTION>().get<std::string>(0))),
     component(fromstring::component(record.getItem<BC::COMPONENT>().get<std::string>(0))),
     rate(record.getItem<BC::RATE>().getSIDouble(0))
@@ -119,6 +136,7 @@ BCConfig::BCFace BCConfig::BCFace::serializationTestObject()
     result.k1 = 14;
     result.k2 = 15;
     result.bctype = BCType::RATE;
+    result.bcmechtype = BCMECHType::NONE;
     result.dir = FaceDir::XPlus;
     result.component = BCComponent::GAS;
     result.rate = 100.0;
@@ -137,6 +155,7 @@ bool BCConfig::BCFace::operator==(const BCConfig::BCFace& other) const {
            this->k1 == other.k1 &&
            this->k2 == other.k2 &&
            this->bctype == other.bctype &&
+           this->bcmechtype == other.bcmechtype &&
            this->dir == other.dir &&
            this->component == other.component &&
            this->rate == other.rate &&
