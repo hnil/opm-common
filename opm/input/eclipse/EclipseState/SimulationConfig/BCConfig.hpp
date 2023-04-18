@@ -37,7 +37,7 @@ enum class BCType {
      RATE,
      FREE,
      DIRICHLET,
-     THERMAL
+     THERMAL,
      NONE
 };
 
