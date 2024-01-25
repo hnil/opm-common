@@ -26,6 +26,7 @@
 #include <opm/input/eclipse/Parser/ParserKeywords/C.hpp>
 #include <opm/input/eclipse/Parser/ParserKeywords/D.hpp>
 #include <opm/input/eclipse/Parser/ParserKeywords/G.hpp>
+#include <opm/input/eclipse/Parser/ParserKeywords/H.hpp>
 #include <opm/input/eclipse/Parser/ParserKeywords/P.hpp>
 #include <opm/input/eclipse/Parser/ParserKeywords/R.hpp>
 #include <opm/input/eclipse/Parser/ParserKeywords/V.hpp>
@@ -2183,6 +2184,16 @@ PvtwTable::PvtwTable(const DeckKeyword& kw)
 {}
 
 PvtwTable::PvtwTable(std::initializer_list<PVTWRecord> records)
+    : FlatTableWithCopy(records)
+{}
+
+// ------------------------------------------------------------------------
+
+VariableTable::VariableTable(const DeckKeyword& kw)
+    : FlatTableWithCopy(kw, ParserKeywords::HEATVAP::keywordName)
+{}
+
+VariableTable::VariableTable(std::initializer_list<VariableRecord> records)
     : FlatTableWithCopy(records)
 {}
 
