@@ -236,6 +236,21 @@ struct DiffCoeffGasTable : public FlatTable< DiffCoeffGasRecord > {
     }
 };
 
+struct VariableRecord {
+    std::vector<double> values
+    bool operator==(const PVTWRecord& data) const {
+        return values == data.values;
+    }
+
+    template<class Serializer>
+    void serializeOp(Serializer& serializer)
+    {
+        serializer(values);
+    }
+};
+
+
+
 struct PVTWRecord {
     static constexpr std::size_t size = 5;
 
@@ -273,6 +288,19 @@ struct PvtwTable : public FlatTableWithCopy<PVTWRecord>
     static PvtwTable serializationTestObject()
     {
         return PvtwTable({{1.0, 2.0, 3.0, 4.0, 5.0}});
+    }
+};
+
+
+struct VariableTable : public FlatTable<VariableRecord>
+{
+    VariableTable() = default;
+    explicit VariableTable(const DeckKeyword& kw);
+    explicit VariableTable(std::initializer_list<VariableRecord> records);
+
+    static VariableTable serializationTestObject()
+    {
+        return VariableTable({{1.0, 2.0, 3.0, 4.0, 5.0}});
     }
 };
 

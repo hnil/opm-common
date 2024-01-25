@@ -183,6 +183,9 @@ namespace Opm {
         const std::map<int, SkprpolyTable>& getSkprpolyTables() const;
         const std::map<std::string, TableContainer>& getSimpleTables() const;
 
+        //Component based tables
+        const VariableTable& getHeatVapTable() const;
+
         /// deck has keyword "IMPTVD" --- Imbition end-point versus depth tables
         bool useImptvd() const;
 
@@ -226,6 +229,7 @@ namespace Opm {
             serializer(m_rock2dTables);
             serializer(m_rock2dtrTables);
             serializer(m_pvtwTable);
+            serializer(m_heatvapTable);
             serializer(m_pvcdoTable);
             serializer(m_densityTable);
             serializer(m_diffCoeffTable);
@@ -374,6 +378,7 @@ namespace Opm {
         std::vector<Rock2dTable> m_rock2dTables;
         std::vector<Rock2dtrTable> m_rock2dtrTables;
         PvtwTable m_pvtwTable;
+        VariableTable m_heatvapTable;
         PvcdoTable m_pvcdoTable;
         DensityTable m_densityTable;
         DiffCoeffTable m_diffCoeffTable;
@@ -435,4 +440,3 @@ namespace Opm {
 
 
 #endif
-
