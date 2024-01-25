@@ -161,6 +161,10 @@ std::optional<JFunc> make_jfunc(const Deck& deck) {
             this->checkPVTOMonotonicity(deck);
         }
 
+        if( deck.hasKeyword( "HEATVAP") ){
+            this->m_heatvapTable = VariableTable( deck["HEATVAP"].back() );
+        }
+
         if( deck.hasKeyword( "PVTSOL" ) )
            initFullTables(deck, "PVTSOL", m_pvtsolTables);
 
@@ -237,7 +241,7 @@ std::optional<JFunc> make_jfunc(const Deck& deck) {
 
         if (deck.hasKeyword<ParserKeywords::WATDENT>())
             this->watDenT = DenT( deck.get<ParserKeywords::WATDENT>().back());
-        
+
         if (deck.hasKeyword<ParserKeywords::GASJT>())
             this->gasJT = JouleThomson( deck.get<ParserKeywords::GASJT>().back());
 
@@ -627,7 +631,7 @@ std::optional<JFunc> make_jfunc(const Deck& deck) {
         } else if (hasRTEMPVD) {
             initSimpleTableContainer<RtempvdTable>(deck, "RTEMPVD", "RTEMPVD", m_eqldims.getNumEquilRegions());
         }
-    }   
+    }
 
 
     void TableManager::initPlyshlogTables(const Deck& deck) {
@@ -957,7 +961,7 @@ std::optional<JFunc> make_jfunc(const Deck& deck) {
     const TableContainer& TableManager::getPcfactTables() const {
         return getTables("PCFACT");
     }
-    
+
     const TableContainer& TableManager::getPermfactTables() const {
         return getTables("PERMFACT");
     }
@@ -1094,6 +1098,10 @@ std::optional<JFunc> make_jfunc(const Deck& deck) {
 
     const PvtwTable& TableManager::getPvtwTable() const {
         return this->m_pvtwTable;
+    }
+
+    const VariableTable& TableManager::getHeatVapTable() const {
+        return this->m_heatvapTable;
     }
 
     const std::vector<PvtwsaltTable>& TableManager::getPvtwSaltTables() const {
