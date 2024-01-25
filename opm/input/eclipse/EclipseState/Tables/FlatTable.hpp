@@ -237,8 +237,9 @@ struct DiffCoeffGasTable : public FlatTable< DiffCoeffGasRecord > {
 };
 
 struct VariableRecord {
-    std::vector<double> values
-    bool operator==(const PVTWRecord& data) const {
+    //static constexpr std::size_t size = 3;
+    std::vector<double> values;
+    bool operator==(const VariableRecord& data) const {
         return values == data.values;
     }
 
@@ -296,12 +297,14 @@ struct VariableTable : public FlatTable<VariableRecord>
 {
     VariableTable() = default;
     explicit VariableTable(const DeckKeyword& kw);
-    explicit VariableTable(std::initializer_list<VariableRecord> records);
+    //explicit VariableTable(std::initializer_list<VariableRecord> records);
 
-    static VariableTable serializationTestObject()
-    {
-        return VariableTable({{1.0, 2.0, 3.0, 4.0, 5.0}});
-    }
+    // static VariableTable serializationTestObject()
+    // {
+    //     std::vector<double> v1 = {1.0, 2.0, 3.0};
+    //     //std::vector<double> v2 = {1.1, 2.1, 3.1};
+    //     return VariableTable({v1}});
+    // }
 };
 
 struct ROCKRecord {
