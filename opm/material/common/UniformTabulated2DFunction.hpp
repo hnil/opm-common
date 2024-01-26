@@ -198,7 +198,7 @@ public:
                     [[maybe_unused]] bool extrapolate) const
     {
 #ifndef NDEBUG
-        if (!extrapolate && !applies(x,y)) {
+        if (!applies(x,y)) {
             std::string msg = "Attempt to get tabulated value for ("
                 +std::to_string(double(scalarValue(x)))+", "+std::to_string(double(scalarValue(y)))
                 +") on a table of extent "
@@ -212,8 +212,8 @@ public:
             else
             {
                 OpmLog::warning("PVT Table evaluation:" + msg + ". Will use extrapolation");
+                OpmLog::warning("This warning is timeconsuming: Compile with NDEBUG to avoid it");
             }
-
         }
 #endif
 
