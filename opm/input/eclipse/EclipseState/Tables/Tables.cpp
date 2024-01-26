@@ -2189,13 +2189,38 @@ PvtwTable::PvtwTable(std::initializer_list<PVTWRecord> records)
 
 // ------------------------------------------------------------------------
 
-VariableTable::VariableTable(const DeckKeyword& kw)
-    : FlatTableWithCopy(kw, ParserKeywords::HEATVAP::keywordName)
+VariableRecord::VariableRecord(const DeckRecord& rec)
+    : values_ { rec.getItem(0).getSIDoubleData() }
 {}
 
-VariableTable::VariableTable(std::initializer_list<VariableRecord> records)
-    : FlatTableWithCopy(records)
+VariableRecord::VariableRecord(std::initializer_list<double> val)
+    : values_ { val }
 {}
+
+VariableRecord VariableRecord::serializationTestObject()
+{
+    return VariableRecord { 1.0, 2.0, 3.0, 4.0 };
+}
+
+VariableTable::VariableTable(const DeckKeyword& kw)
+{
+    for (const auto& rec : kw) {
+        this->records_.push_back(VariableRecord { rec });
+    }
+}
+
+VariableTable::VariableTable(std::initializer_list<VariableRecord> records)
+    : records_(records)
+{}
+
+VariableTable VariableTable::serializationTestObject()
+{
+    return VariableTable {
+        VariableRecord::serializationTestObject(),
+        VariableRecord::serializationTestObject(),
+        VariableRecord::serializationTestObject(),
+    };
+}
 
 // ------------------------------------------------------------------------
 

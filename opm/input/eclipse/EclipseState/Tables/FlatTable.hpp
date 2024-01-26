@@ -8,7 +8,12 @@
 
 namespace Opm {
 
+class DeckRecord;
 class DeckKeyword;
+
+} // namespace Opm
+
+namespace Opm {
 
 template< typename T >
 struct FlatTable : public std::vector< T > {
@@ -236,22 +241,6 @@ struct DiffCoeffGasTable : public FlatTable< DiffCoeffGasRecord > {
     }
 };
 
-struct VariableRecord {
-    //static constexpr std::size_t size = 3;
-    std::vector<double> values;
-    bool operator==(const VariableRecord& data) const {
-        return values == data.values;
-    }
-
-    template<class Serializer>
-    void serializeOp(Serializer& serializer)
-    {
-        serializer(values);
-    }
-};
-
-
-
 struct PVTWRecord {
     static constexpr std::size_t size = 5;
 
@@ -292,21 +281,6 @@ struct PvtwTable : public FlatTableWithCopy<PVTWRecord>
     }
 };
 
-
-struct VariableTable : public FlatTable<VariableRecord>
-{
-    VariableTable() = default;
-    explicit VariableTable(const DeckKeyword& kw);
-    //explicit VariableTable(std::initializer_list<VariableRecord> records);
-
-    // static VariableTable serializationTestObject()
-    // {
-    //     std::vector<double> v1 = {1.0, 2.0, 3.0};
-    //     //std::vector<double> v2 = {1.1, 2.1, 3.1};
-    //     return VariableTable({v1}});
-    // }
-};
-
 struct ROCKRecord {
     static constexpr std::size_t size = 2;
 
@@ -336,6 +310,89 @@ struct RockTable : public FlatTableWithCopy<ROCKRecord>
     {
         return RockTable({{1.0, 2.0}});
     }
+};
+
+class VariableTable;
+
+class VariableRecord
+{
+public:
+    VariableRecord() = default;
+    explicit VariableRecord(std::initializer_list<double> values);
+
+    auto size()  const { return this->values_.size(); }
+    bool empty() const { return this->values_.empty(); }
+    auto begin() const { return this->values_.begin(); }
+    auto end()   const { return this->values_.end(); }
+
+    static VariableRecord serializationTestObject();
+
+    double operator[](const std::size_t ix) const
+    {
+        return this->values_[ix];
+    }
+
+    double at(const std::size_t ix) const
+    {
+        return this->values_.at(ix);
+    }
+
+    bool operator==(const VariableRecord& other) const
+    {
+        return this->values_ == other.values_;
+    }
+
+    template <class Serializer>
+    void serializeOp(Serializer& serializer)
+    {
+        serializer(this->values_);
+    }
+
+    friend class VariableTable;
+
+private:
+    explicit VariableRecord(const DeckRecord& rec);
+
+    std::vector<double> values_{};
+};
+
+class VariableTable
+{
+public:
+    VariableTable() = default;
+    explicit VariableTable(const DeckKeyword& kw);
+    explicit VariableTable(std::initializer_list<VariableRecord> records);
+
+    auto size()  const { return this->records_.size(); }
+    bool empty() const { return this->records_.empty(); }
+    auto begin() const { return this->records_.begin(); }
+    auto end()   const { return this->records_.end(); }
+
+    static VariableTable serializationTestObject();
+
+    const VariableRecord& operator[](const std::size_t ix) const
+    {
+        return this->records_[ix];
+    }
+
+    const VariableRecord& at(const std::size_t ix) const
+    {
+        return this->records_.at(ix);
+    }
+
+    bool operator==(const VariableTable& that) const
+    {
+        return this->records_ == that.records_;
+    }
+
+    template <class Serializer>
+    void serializeOp(Serializer& serializer)
+    {
+        serializer(this->records_);
+    }
+
+private:
+    std::vector<VariableRecord> records_{};
 };
 
 struct PVCDORecord {
@@ -654,6 +711,6 @@ struct SgofletTable : public FlatTable< SatFuncLETRecord > {
     }
 };
 
-}
+} // namespace Opm
 
 #endif //OPM_FLAT_TABLE_HPP
