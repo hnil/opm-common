@@ -75,6 +75,7 @@ public:
                     const std::vector<Scalar>& pvtwViscosibility,
                     const std::vector<TabulatedOneDFunction>& watvisctCurves,
                     const std::vector<TabulatedOneDFunction>& internalEnergyCurves,
+                    const std::vector<Scalar>& hVap,
                     bool enableThermalDensity,
                     bool enableJouleThomson,
                     bool enableThermalViscosity,
@@ -93,6 +94,7 @@ public:
         , pvtwViscosibility_(pvtwViscosibility)
         , watvisctCurves_(watvisctCurves)
         , internalEnergyCurves_(internalEnergyCurves)
+        , hVap_(hVap)
         , enableThermalDensity_(enableThermalDensity)
         , enableJouleThomson_(enableJouleThomson)
         , enableThermalViscosity_(enableThermalViscosity)

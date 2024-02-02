@@ -72,6 +72,7 @@ public:
                   const std::vector<Scalar>& oilJTRefPres,
                   const std::vector<Scalar>& oilJTC,
                   const std::vector<TabulatedOneDFunction>& internalEnergyCurves,
+                  const std::vector<Scalar>& hVap,
                   bool enableThermalDensity,
                   bool enableJouleThomson,
                   bool enableThermalViscosity,
@@ -87,6 +88,7 @@ public:
         , oilJTRefPres_(oilJTRefPres)
         , oilJTC_(oilJTC)
         , internalEnergyCurves_(internalEnergyCurves)
+        , hVap_(hVap)
         , enableThermalDensity_(enableThermalDensity)
         , enableJouleThomson_(enableJouleThomson)
         , enableThermalViscosity_(enableThermalViscosity)

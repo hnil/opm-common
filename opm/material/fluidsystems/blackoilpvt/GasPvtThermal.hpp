@@ -71,6 +71,7 @@ public:
                   const std::vector<Scalar>& gasJTRefPres,
                   const std::vector<Scalar>& gasJTC,
                   const std::vector<TabulatedOneDFunction>& internalEnergyCurves,
+                  const std::vector<Scalar>& hVap,
                   bool enableThermalDensity,
                   bool enableJouleThomson,
                   bool enableThermalViscosity,
@@ -85,6 +86,7 @@ public:
         , gasJTRefPres_(gasJTRefPres)
         , gasJTC_(gasJTC)
         , internalEnergyCurves_(internalEnergyCurves)
+        , hVap_(hVap)
         , enableThermalDensity_(enableThermalDensity)
         , enableJouleThomson_(enableJouleThomson)
         , enableThermalViscosity_(enableThermalViscosity)
@@ -492,10 +494,10 @@ private:
     std::vector<Scalar> gasJTC_;
 
     std::vector<Scalar> rhoRefO_;
-    std::vector<Scalar> hVap_;
 
     // piecewise linear curve representing the internal energy of gas
     std::vector<TabulatedOneDFunction> internalEnergyCurves_;
+    std::vector<Scalar> hVap_;
 
     bool enableThermalDensity_;
     bool enableJouleThomson_;
