@@ -88,9 +88,8 @@ initFromState(const EclipseState& eclState, const Schedule& schedule)
             pvtwRefPress_[regionIdx] = pvtwTables[regionIdx].reference_pressure;
             pvtwRefB_[regionIdx] = pvtwTables[regionIdx].volume_factor;
         }
-
-        const auto& hVap = tables.hVap();
-        int waterIdx = 0;
+        const auto& hVap = tables.getHeatVapTable();
+        int waterIdx = 1; //oilIdx=0 gasIdx=2
         for (unsigned regionIdx = 0; regionIdx < numRegions; ++ regionIdx) {
             hVap_[regionIdx] = hVap[region][waterIdx];
         }

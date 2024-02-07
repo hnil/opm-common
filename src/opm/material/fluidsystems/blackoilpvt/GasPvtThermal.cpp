@@ -122,6 +122,12 @@ initFromState(const EclipseState& eclState, const Schedule& schedule)
         }
     }
 
+    const auto& hVap = tables.getHeatVapTable();
+    int waterIdx = 2; //oilIdx=0 gasIdx=2
+    for (unsigned regionIdx = 0; regionIdx < numRegions; ++ regionIdx) {
+        hVap_[regionIdx] = hVap[region][waterIdx];
+    }
+
     // Joule Thomson
     if (enableJouleThomson_) {
         const auto& gasJT = tables.GasJT();
