@@ -88,6 +88,12 @@ initFromState(const EclipseState& eclState, const Schedule& schedule)
             pvtwRefPress_[regionIdx] = pvtwTables[regionIdx].reference_pressure;
             pvtwRefB_[regionIdx] = pvtwTables[regionIdx].volume_factor;
         }
+
+        const auto& hVap = tables.hVap();
+        int waterIdx = 0;
+        for (unsigned regionIdx = 0; regionIdx < numRegions; ++ regionIdx) {
+            hVap_[regionIdx] = hVap[region][waterIdx];
+        }
     }
 
     // Joule Thomson
