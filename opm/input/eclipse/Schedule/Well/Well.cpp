@@ -1185,6 +1185,10 @@ const WellConnections& Well::getConnections() const {
     return *this->connections;
 }
 
+WellConnections& Well::getConnections(){
+    return *this->connections;
+}
+
 const std::vector<const Connection *> Well::getConnections(int completion) const {
     std::vector<const Connection *> connvector;
     for (const auto& conn : this->getConnections()) {
