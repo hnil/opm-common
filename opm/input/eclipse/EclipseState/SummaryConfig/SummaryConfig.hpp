@@ -25,6 +25,7 @@
 #include <opm/common/OpmLog/KeywordLocation.hpp>
 
 #include <array>
+#include <cstddef>
 #include <limits>
 #include <optional>
 #include <set>
@@ -93,14 +94,14 @@ namespace Opm {
         }
 
     private:
-        std::string keyword_{};
-        Category    category_{};
-        KeywordLocation loc{};
-        Type        type_{ Type::Undefined };
-        std::string name_{};
-        int         number_{std::numeric_limits<int>::min()};
+        std::string                keyword_{};
+        Category                   category_{};
+        KeywordLocation            loc{};
+        Type                       type_{ Type::Undefined };
+        std::string                name_{};
+        int                        number_{std::numeric_limits<int>::min()};
         std::optional<std::string> fip_region_;
-        bool        userDefined_{false};
+        bool                       userDefined_{false};
     };
 
     SummaryConfigNode::Category parseKeywordCategory(const std::string& keyword);
@@ -132,30 +133,28 @@ namespace Opm {
     class SummaryConfig
     {
         public:
-            typedef SummaryConfigNode keyword_type;
-            typedef std::vector< keyword_type > keyword_list;
-            typedef keyword_list::const_iterator const_iterator;
+            using keyword_list = std::vector<SummaryConfigNode>;
 
             SummaryConfig() = default;
-            SummaryConfig( const Deck&,
-                           const Schedule&,
-                           const FieldPropsManager&,
-                           const AquiferConfig&,
-                           const ParseContext&,
-                           ErrorGuard&);
+            SummaryConfig(const Deck&,
+                          const Schedule&,
+                          const FieldPropsManager&,
+                          const AquiferConfig&,
+                          const ParseContext&,
+                          ErrorGuard&);
 
             template <typename T>
-            SummaryConfig( const Deck&,
-                           const Schedule&,
-                           const FieldPropsManager&,
-                           const AquiferConfig&,
-                           const ParseContext&,
-                           T&&);
+            SummaryConfig(const Deck&,
+                          const Schedule&,
+                          const FieldPropsManager&,
+                          const AquiferConfig&,
+                          const ParseContext&,
+                          T&&);
 
-            SummaryConfig( const Deck&,
-                           const Schedule&,
-                           const FieldPropsManager&,
-                           const AquiferConfig&);
+            SummaryConfig(const Deck&,
+                          const Schedule&,
+                          const FieldPropsManager&,
+                          const AquiferConfig&);
 
             SummaryConfig(const keyword_list& kwds,
                           const std::set<std::string>& shortKwds,
@@ -163,49 +162,47 @@ namespace Opm {
 
             static SummaryConfig serializationTestObject();
 
-            const_iterator begin() const;
-            const_iterator end() const;
-            size_t size() const;
-            SummaryConfig& merge( const SummaryConfig& );
-            SummaryConfig& merge( SummaryConfig&& );
+            auto begin() const { return this->m_keywords.begin(); }
+            auto end() const { return this->m_keywords.end(); }
+
+            std::size_t size() const { return this->m_keywords.size(); }
+
+            const keyword_list& extraFracturingVectors() const
+            {
+                return this->extraFracturingVectors_;
+            }
+
+            SummaryConfig& merge(const SummaryConfig&);
+            SummaryConfig& merge(SummaryConfig&&);
 
             keyword_list
             registerRequisiteUDQorActionSummaryKeys(const std::vector<std::string>& extraKeys,
                                                     const EclipseState&             es,
                                                     const Schedule&                 sched);
 
-            /*
-              The hasKeyword() method will consult the internal set
-              'short_keywords', i.e. the query should be based on pure
-              keywords like 'WWCT' and 'BPR' - and *not* fully
-              identifiers like 'WWCT:OPX' and 'BPR:10,12,3'.
-            */
-            bool hasKeyword( const std::string& keyword ) const;
+            // The hasKeyword() method will consult the internal set
+            // 'short_keywords', i.e. the query should be based on pure
+            // keywords like 'WWCT' and 'BPR' - and *not* fully identifiers
+            // like 'WWCT:OPX' and 'BPR:10,12,3'.
+            bool hasKeyword(const std::string& keyword ) const;
 
-
-            /*
-              Will check if the SummaryConfig object contains any keyword
-              matching the pattern argument. The matching is done with
-              fnmatch().
-            */
+            // Will check if the SummaryConfig object contains any keyword
+            // matching the pattern argument. The matching is performed as
+            // if by the Posix function fnmatch().
             bool match(const std::string& keywordPattern) const;
-
 
             keyword_list keywords(const std::string& keywordPattern) const;
 
-            /*
-               The hasSummaryKey() method will look for fully
-               qualified keys like 'RPR:3' and 'BPR:10,15,20.
-            */
+            // The hasSummaryKey() method will look for fully qualified keys
+            // like 'RPR:3' and 'BPR:10,15,20.
             bool hasSummaryKey(const std::string& keyword ) const;
-            /*
-              Can be used to query if a certain 3D field, e.g. PRESSURE,
-              is required to calculate the summary variables.
-            */
-            bool require3DField( const std::string& keyword) const;
+
+            // Can be used to query if a certain 3D field, e.g. PRESSURE, is
+            // required to calculate the summary variables.
+            bool require3DField(const std::string& keyword) const;
+
             std::set<std::string> fip_regions() const;
             std::set<std::string> fip_regions_interreg_flow() const;
-            std::unordered_set<std::string> wbp_wells() const;
 
             bool operator==(const SummaryConfig& data) const;
 
@@ -217,28 +214,26 @@ namespace Opm {
                serializer(summary_keywords);
             }
 
-            bool createRunSummary() const {
-                return runSummaryConfig.create;
-            }
+            bool createRunSummary() const
+            { return runSummaryConfig.create; }
 
             const SummaryConfigNode& operator[](std::size_t index) const;
 
-
         private:
-            SummaryConfig( const Deck& deck,
-                           const Schedule& schedule,
-                           const FieldPropsManager& field_props,
-                           const AquiferConfig& aquiferConfig,
-                           const ParseContext& parseContext,
-                           ErrorGuard& errors,
-                           const GridDims& dims);
+            SummaryConfig(const Deck& deck,
+                          const Schedule& schedule,
+                          const FieldPropsManager& field_props,
+                          const AquiferConfig& aquiferConfig,
+                          const ParseContext& parseContext,
+                          ErrorGuard& errors,
+                          const GridDims& dims);
 
-            /*
-              The short_keywords set contains only the pure keyword
-              part, e.g. "WWCT", and not the qualification with
-              well/group name or a numerical value.
-            */
-            keyword_list m_keywords;
+            keyword_list m_keywords{};
+            keyword_list extraFracturingVectors_{};
+
+            // The short_keywords set contains only the pure keyword part,
+            // e.g. "WWCT", and not the qualification with well/group name
+            // or a numerical value.
             std::set<std::string> short_keywords;
             std::set<std::string> summary_keywords;
 
