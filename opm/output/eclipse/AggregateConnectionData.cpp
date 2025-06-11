@@ -75,6 +75,7 @@ namespace {
             : &grid;
 
         std::size_t connID = 0;
+
         for (const auto* connPtr : well.getConnections().output(*lgrid)) {
             if (connPtr->kind() == Opm::Connection::CTFKind::DynamicFracturing) {
                 // Don't emit, or count, connections created by dynamic fracturing.
