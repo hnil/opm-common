@@ -49,7 +49,6 @@ public:
 
     /// Type alias for the normal vector at a single seed point.
     using NormalVector = std::array<double, 3>;
-
     /// Vertical extent, horizontal extent, and width of initial fracture at
     /// a seed point.
     class SeedSize
@@ -303,6 +302,7 @@ public:
     {
         return this->seedNormal_[i.i];
     }
+
 
     /// Retrieve initial fracture size vector based on insertion
     /// order/record index.
