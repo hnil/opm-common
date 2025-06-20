@@ -1024,6 +1024,7 @@ void handleWSEED(HandlerContext& handlerContext)
 	const auto cellSeedSize = WellFractureSeeds::SizeVector {
             record.getItem<ParserKeywords::WSEED::SIZE_Z>().getSIDouble(0),
             record.getItem<ParserKeywords::WSEED::SIZE_H>().getSIDouble(0),
+            record.getItem<ParserKeywords::WSEED::WIDTH>().getSIDouble(0),
         };
 
         for (const auto& well_name : well_names) {

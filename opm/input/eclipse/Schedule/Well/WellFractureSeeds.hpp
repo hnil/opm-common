@@ -48,7 +48,7 @@ public:
 
     /// Type alias for the normal vector at a single seed point.
     using NormalVector = std::array<double, 3>;
-    using SizeVector = std::array<double, 2>;
+    using SizeVector = std::array<double, 3>; // horizontal size, vertical size, with
 
     /// Default constructor.
     ///
@@ -140,7 +140,10 @@ public:
     {
         return this->seedNormal_[i.i];
     }
-
+    const SizeVector& getSize(const SeedIndex& i) const
+    {
+        return this->seedSize_[i.i];
+    }
     /// Retrieve this collection's fracture seed cells
     ///
     /// \return Sequence of Cartesian cell indices.  The normal vector of
