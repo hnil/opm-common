@@ -260,6 +260,42 @@ namespace Opm { namespace data {
         void read(MessageBufferType& buffer);
     };
 
+    struct ConnectionFracture
+    {
+        double area;
+        double flux;
+        double height;
+        double length;
+
+        template<class Serializer>
+        void serializeOp(Serializer& serializer) {
+            serializer(area);
+            serializer(flux);
+            serializer(height);
+            serializer(length);
+        }
+
+        bool operator==(const ConnectionFracture& fraccon) const
+        {
+            return this->area == fraccon.area &&
+                   this->flux == fraccon.flux &&
+                   this->height == fraccon.height &&
+                   this->length == fraccon.length;
+        }
+
+        static ConnectionFracture serializationTestObject()
+        {
+          return {0.8, 100.,1.3, 1.4};
+        }
+
+        template <class MessageBufferType>
+        void write(MessageBufferType& buffer) const;
+
+        template <class MessageBufferType>
+        void read(MessageBufferType& buffer);
+    };
+
+    
     /// Connection Level Fracturing Statistics
     struct ConnectionFracturing
     {
@@ -343,6 +379,18 @@ namespace Opm { namespace data {
         ///
         /// Expected to be the same for each quantiy.
         std::size_t numCells{};
+
+        // Area
+        double area{};
+
+        // total flux;
+        double totalFlux{};
+
+        // height
+        double height{};
+
+        // horisotal length
+        double length{};
 
         /// Statistical measures for connection's fracture pressures.
         Statistics press{};
@@ -436,6 +484,8 @@ namespace Opm { namespace data {
 
         ConnectionFiltrate filtrate{};
 
+        ConnectionFracture fracture{};
+
         /// Connection level fracturing statistics.
         ConnectionFracturing fract{};
 
@@ -453,6 +503,7 @@ namespace Opm { namespace data {
                 && (d_factor == conn2.d_factor)
                 && (compact_mult == conn2.compact_mult)
                 && (filtrate == conn2.filtrate)
+                && (fracture == conn2.fracture)
                 && (this->fract == conn2.fract)
                 ;
         }
@@ -479,6 +530,7 @@ namespace Opm { namespace data {
             serializer(d_factor);
             serializer(compact_mult);
             serializer(filtrate);
+            serializer(fracture);
             serializer(this->fract);
         }
 
@@ -489,6 +541,7 @@ namespace Opm { namespace data {
                 2.0, 3.0, 4.0, 5.0,
                 6.0, 7.0, 8.0, 9.0, 0.987,
                 ConnectionFiltrate::serializationTestObject(),
+                ConnectionFracture::serializationTestObject(),
                 ConnectionFracturing::serializationTestObject()
             };
         }
@@ -1466,6 +1519,7 @@ namespace Opm { namespace data {
             buffer.write(this->d_factor);
             buffer.write(this->compact_mult);
             this->filtrate.write(buffer);
+            this->fracture.write(buffer);
             this->fract.write(buffer);
     }
 
@@ -1646,6 +1700,7 @@ namespace Opm { namespace data {
             buffer.read(this->d_factor);
             buffer.read(this->compact_mult);
             this->filtrate.read(buffer);
+            this->fracture.read(buffer);
             this->fract.read(buffer);
    }
 
