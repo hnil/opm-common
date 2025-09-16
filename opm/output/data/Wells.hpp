@@ -289,10 +289,20 @@ namespace Opm { namespace data {
         }
 
         template <class MessageBufferType>
-        void write(MessageBufferType& buffer) const;
+        void write(MessageBufferType& buffer) const{
+            buffer.write(this->area);
+            buffer.write(this->flux);
+            buffer.write(this->height);
+            buffer.write(this->length);
+        }
 
         template <class MessageBufferType>
-        void read(MessageBufferType& buffer);
+        void read(MessageBufferType& buffer){
+            buffer.read(this->area);
+            buffer.read(this->flux);
+            buffer.read(this->height);
+            buffer.read(this->length);
+        }
     };
 
     
