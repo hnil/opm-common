@@ -1048,13 +1048,31 @@ bool connection_quantities_ptr( const fn_args& args ,
 template <bool injection = true>
 inline quantity fracture_connection_quantities( const fn_args& args ) {
 
-     static const auto conn_quant =
-       std::unordered_map<std::string, std::pair<measure, double Opm::data::ConnectionFracture::*> >{
-       {"CFRAREA",  {measure::area, &Opm::data::ConnectionFracture::area}},
-       {"CFRFLUX",  {measure::geometric_volume_rate, &Opm::data::ConnectionFracture::flux}},
-       {"CFRHEIGH",  {measure::length, &Opm::data::ConnectionFracture::height}},
-       {"CFRLENGT",  {measure::length, &Opm::data::ConnectionFracture::length}},
-     };
+    static const auto conn_quant
+        = std::unordered_map<std::string, std::pair<measure, double Opm::data::ConnectionFracture::*>> {
+            {"CFRAREA", {measure::area, &Opm::data::ConnectionFracture::area}},
+            {"CFRFLUX", {measure::geometric_volume_rate, &Opm::data::ConnectionFracture::flux}},
+            {"CFRHEIGH", {measure::length, &Opm::data::ConnectionFracture::height}},
+            {"CFRLENGT", {measure::length, &Opm::data::ConnectionFracture::length}},
+            {"CFRWI", {measure::transmissibility, &Opm::data::ConnectionFracture::WI}},
+            {"CFRVOLUM", {measure::geometric_volume, &Opm::data::ConnectionFracture::volume}},
+            {"CFRFVOLU", {measure::geometric_volume, &Opm::data::ConnectionFracture::filter_volume}},
+            {"CFRAVGW", {measure::length, &Opm::data::ConnectionFracture::avg_width}},
+            {"CFRAVGFW", {measure::length, &Opm::data::ConnectionFracture::avg_filter_width}},
+        };
+
+
+    // static const auto conn_quant
+    //     = std::unordered_map<std::string, std::pair<measure, double Opm::data::ConnectionFracture::*>> {
+    //         {"CFRAREA", {measure::area, &Opm::data::ConnectionFracture::area}},
+    //         {"CFRFLUX", {measure::geometric_volume_rate, &Opm::data::ConnectionFracture::flux}},
+    //         {"CFRHEIGH", {measure::length, &Opm::data::ConnectionFracture::height}},
+    //         {"CFRLENGT", {measure::length, &Opm::data::ConnectionFracture::length}},
+    //         {"CFRWI", {measure::transmissibility, &Opm::data::ConnectionFracture::WI}},
+    //         {"CFRVOLUM", {measure::volume, &Opm::data::ConnectionFracture::volume}},
+    //         {"CFRFVOLU", {measure::volume, &Opm::data::ConnectionFracture::filter_volume}},
+    //         {"CFRAVGW", {measure::length, &Opm::data::ConnectionFracture::avg_width}},
+    //         {"CFRAVGFW" {measure::length, &Opm::data::ConnectionFracture::avg_filter_width}}};
 
     std::vector<Opm::data::Connection>::const_iterator connection;
     double Opm::data::ConnectionFracture::* quant_ptr;
@@ -2850,6 +2868,11 @@ static const auto funs = std::unordered_map<std::string, ofun> {
     { "CFRFLUX", fracture_connection_quantities<injector> },
     { "CFRHEIGH", fracture_connection_quantities<injector> },
     { "CFRLENGT", fracture_connection_quantities<injector> },
+    { "CFRWI", fracture_connection_quantities<injector> },
+    { "CFRVOLUM",fracture_connection_quantities<injector> },
+    { "CFRFVOLU",fracture_connection_quantities<injector> },
+    { "CFRAVGW",fracture_connection_quantities<injector> },
+    { "CFRAVGFW",fracture_connection_quantities<injector> },
     //
     // statistics on fracture
     { "CFRPMAX", connFracStatistics<&Opm::data::ConnectionFracturing::press,

@@ -266,6 +266,11 @@ namespace Opm { namespace data {
         double flux;
         double height;
         double length;
+        double WI;
+        double volume;
+        double filter_volume;
+        double avg_width;
+        double avg_filter_width;
 
         template<class Serializer>
         void serializeOp(Serializer& serializer) {
@@ -273,6 +278,11 @@ namespace Opm { namespace data {
             serializer(flux);
             serializer(height);
             serializer(length);
+            serializer(WI);
+            serializer(volume);
+            serializer(filter_volume);
+            serializer(avg_width);
+            serializer(avg_filter_width);
         }
 
         bool operator==(const ConnectionFracture& fraccon) const
@@ -280,12 +290,17 @@ namespace Opm { namespace data {
             return this->area == fraccon.area &&
                    this->flux == fraccon.flux &&
                    this->height == fraccon.height &&
-                   this->length == fraccon.length;
+                   this->length == fraccon.length &&
+                   this->WI == fraccon.WI &&
+                   this->volume == fraccon.volume &&
+                   this->filter_volume == fraccon.filter_volume &&
+                   this->avg_width == fraccon.avg_width &&
+                   this->avg_filter_width == fraccon.avg_filter_width;
         }
 
         static ConnectionFracture serializationTestObject()
         {
-          return {0.8, 100.,1.3, 1.4};
+          return {0.8, 100.,1.3, 1.4, 10.0, 4.0, 0.4, 0.5, 0.05};
         }
 
         template <class MessageBufferType>
@@ -294,6 +309,11 @@ namespace Opm { namespace data {
             buffer.write(this->flux);
             buffer.write(this->height);
             buffer.write(this->length);
+            buffer.write(this->WI);
+            buffer.write(this->volume);
+            buffer.write(this->filter_volume);
+            buffer.write(this->avg_width);
+            buffer.write(this->avg_filter_width);
         }
 
         template <class MessageBufferType>
@@ -302,6 +322,11 @@ namespace Opm { namespace data {
             buffer.read(this->flux);
             buffer.read(this->height);
             buffer.read(this->length);
+            buffer.read(this->WI);
+            buffer.read(this->volume);
+            buffer.read(this->filter_volume);
+            buffer.read(this->avg_width);
+            buffer.read(this->avg_filter_width);
         }
     };
 
