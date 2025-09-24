@@ -1100,7 +1100,9 @@ inline quantity filtrate_connection_quantities( const fn_args& args ) {
                     {"CFCPORO",  {measure::identity,              &Opm::data::ConnectionFiltrate::poro}},
                     {"CFCPERM",  {measure::permeability,          &Opm::data::ConnectionFiltrate::perm}},
                     {"CFCRAD",   {measure::length,                &Opm::data::ConnectionFiltrate::radius}},
-                    {"CFCAOF",   {measure::area,                  &Opm::data::ConnectionFiltrate::area_of_flow}}
+                    {"CFCAOF",   {measure::area,                  &Opm::data::ConnectionFiltrate::area_of_flow}},
+                    {"CFCFFRAC",  {measure::identity,              &Opm::data::ConnectionFiltrate::flow_factor}},
+                    {"CFCFRATE", {measure::geometric_volume_rate, &Opm::data::ConnectionFiltrate::fracture_rate}}
             };
 
     std::vector<Opm::data::Connection>::const_iterator connection;
@@ -2861,6 +2863,8 @@ static const auto funs = std::unordered_map<std::string, ofun> {
     { "CFCPORO",  filtrate_connection_quantities<injector> },
     { "CFCRAD",  filtrate_connection_quantities<injector> },
     { "CFCAOF",  filtrate_connection_quantities<injector> },
+    { "CFCFFRAC",  filtrate_connection_quantities<injector> },
+    { "CFCFRATE",  filtrate_connection_quantities<injector> },
 
     // Hydraulic fracturing (OPM extension)
     // over full fracture
