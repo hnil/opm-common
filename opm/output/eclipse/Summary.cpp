@@ -2865,7 +2865,7 @@ static const auto funs = std::unordered_map<std::string, ofun> {
     { "CFRINJBH", fracture_connection_quantities<&Opm::data::ConnectionFracture::inj_bhp,
       measure::pressure, injector> },
     { "CFRINJRA", fracture_connection_quantities<&Opm::data::ConnectionFracture::inj_wellrate,
-      measure::pressure, injector> },  
+      measure::geometric_volume_rate, injector> },  
   
 
     // Fracture pressure statistics
