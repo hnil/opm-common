@@ -113,6 +113,8 @@ public:
     };
 
     explicit GuideRate(const Schedule& schedule);
+    GuideRate(const GuideRate& rhs);
+    GuideRate& operator=(const GuideRate& rhs);
 
     void setSerializationTestData();
 

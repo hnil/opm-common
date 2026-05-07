@@ -71,6 +71,45 @@ Opm::GuideRate::GuideRate(const Schedule& schedule_arg)
     : schedule(schedule_arg)
 {}
 
+Opm::GuideRate::GuideRate(const GuideRate& rhs)
+    : schedule(rhs.schedule)
+    , injection_group_values(rhs.injection_group_values)
+    , potentials(rhs.potentials)
+    , potn_groups(rhs.potn_groups)
+    , guide_rates_expired(rhs.guide_rates_expired)
+{
+    for (const auto& [key, value] : rhs.values) {
+        if (value) {
+            this->values.emplace(key, std::make_unique<GRValState>(*value));
+        }
+    }
+}
+
+Opm::GuideRate& Opm::GuideRate::operator=(const GuideRate& rhs)
+{
+    if (this == &rhs) {
+        return *this;
+    }
+
+    if (&this->schedule != &rhs.schedule) {
+        throw std::logic_error("Cannot assign GuideRate objects backed by different schedules");
+    }
+
+    this->values.clear();
+    for (const auto& [key, value] : rhs.values) {
+        if (value) {
+            this->values.emplace(key, std::make_unique<GRValState>(*value));
+        }
+    }
+
+    this->injection_group_values = rhs.injection_group_values;
+    this->potentials = rhs.potentials;
+    this->potn_groups = rhs.potn_groups;
+    this->guide_rates_expired = rhs.guide_rates_expired;
+
+    return *this;
+}
+
 void Opm::GuideRate::setSerializationTestData()
 {
     values.emplace("test1", std::make_unique<GRValState>(GRValState::serializationTestObject()));
