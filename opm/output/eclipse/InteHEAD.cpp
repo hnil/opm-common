@@ -890,11 +890,21 @@ Opm::RestartIO::InteHEAD::TimePoint
 Opm::RestartIO::getSimulationTimePoint(const std::time_t start,
                                        const double      elapsed)
 {
-    const auto now = TimeService::advance(start, elapsed);
-    const auto tp  = *std::gmtime(&now);
+    auto wholeSeconds = 0.0;
+    auto microseconds = static_cast<int>(std::llround(
+        1.0e6 * std::modf(elapsed, &wholeSeconds)));
 
-    auto sec  = 0.0;            // Not really used here.
-    auto usec = std::floor(1.0e6 * std::modf(elapsed, &sec));
+    if (microseconds >= 1000 * 1000) {
+        wholeSeconds += 1.0;
+        microseconds -= 1000 * 1000;
+    }
+    else if (microseconds < 0) {
+        wholeSeconds -= 1.0;
+        microseconds += 1000 * 1000;
+    }
+
+    const auto now = TimeService::advance(start, wholeSeconds);
+    const auto tp  = *std::gmtime(&now);
 
     return {
         // Y-m-d
@@ -908,7 +918,7 @@ Opm::RestartIO::getSimulationTimePoint(const std::time_t start,
         std::min(tp.tm_sec, 59), // Ignore leap seconds
 
         // Fractional seconds in microsecond resolution.
-        static_cast<int>(usec),
+        microseconds,
     };
 }
 
