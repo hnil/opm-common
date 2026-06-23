@@ -1367,6 +1367,10 @@ Defaulted grid coordinates is not allowed for COMPDAT as part of ACTIONX)"
 
                 if (lgrNames.size() == 1) {
                     // First implementation: the whole trajectory lies in one LGR.
+                    // flag_lgr_well() sets ref_type to LGR, which is what
+                    // is_lgr_well()/get_lgr_well_tag() key on; set_lgr_well_tag
+                    // alone is not enough.
+                    well.flag_lgr_well();
                     well.set_lgr_well_tag(*lgrNames.begin());
                 }
                 else if (lgrNames.size() > 1) {
