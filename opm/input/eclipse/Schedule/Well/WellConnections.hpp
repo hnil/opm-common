@@ -139,13 +139,14 @@ namespace Opm {
         /// connection against an arbitrary grid. Supplied by the caller of
         /// recomputeTrajectoryConnections() for each intersected cell.
         struct TrajectoryCell {
-            std::array<int, 3>    ijk{};            //!< logical cartesian index recorded on the connection
+            std::array<int, 3>    ijk{};            //!< index recorded on the connection (LGR-local when lgr_name set, else cartesian)
             std::size_t           global_index{};   //!< grid cell index recorded on the connection
             double                depth{};          //!< cell centre depth
             std::array<double, 3> perm{};           //!< permx, permy, permz
             std::array<double, 3> dimensions{};     //!< cell extent dx, dy, dz
             double                ntg{1.0};
             int                   satnum{0};
+            std::string           lgr_name{};       //!< owning LGR (empty => coarse cell)
         };
 
         /// Rebuild the trajectory connections of this well by intersecting the

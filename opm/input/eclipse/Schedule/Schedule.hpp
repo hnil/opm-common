@@ -30,6 +30,7 @@
 #include <opm/input/eclipse/Schedule/Well/PAvg.hpp>
 #include <opm/input/eclipse/Schedule/Well/Well.hpp>
 #include <opm/input/eclipse/Schedule/Well/Connection.hpp>
+#include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 #include <opm/input/eclipse/Schedule/WriteRestartFileEvents.hpp>
 
 #include <opm/input/eclipse/Units/UnitSystem.hpp>
@@ -339,6 +340,23 @@ namespace Opm {
         std::unordered_set<int> getAquiferFluxSchedule() const;
         std::vector<Well> getWells(std::size_t timeStep) const;
         std::vector<Well> getWellsatEnd() const;
+
+        /// Rebuild WELTRAJ/COMPTRAJ wells' connections against an explicitly
+        /// supplied grid geometry (e.g. a refined LGR leaf) as a post-process,
+        /// instead of the coarse EclipseGrid used at parse time. For every
+        /// report step, each well whose connections come from a trajectory is
+        /// re-intersected; when its cells lie in a single LGR the well is tagged
+        /// (set_lgr_well_tag) so the simulator resolves the connections to the
+        /// refined leaf cells via the existing LGR connection path.
+        ///
+        /// \param[in] cellCorners  eight corner points (OPM/ECL getCornerPos
+        ///            order) of each grid cell, indexed by the cell index that
+        ///            \p cellInfo is queried with.
+        /// \param[in] cellInfo  properties (incl. LGR-local ijk and owning LGR
+        ///            name) of the intersected cell, or std::nullopt to skip it.
+        void recomputeTrajectoryConnections
+            (const std::vector<std::array<std::array<double,3>, 8>>&                          cellCorners,
+             const std::function<std::optional<WellConnections::TrajectoryCell>(std::size_t)>& cellInfo);
 
         // Get wells that have been active any time during simulation
         std::vector<Well> getActiveWellsAtEnd() const;
