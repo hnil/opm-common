@@ -107,13 +107,16 @@
 #include "Well/injection.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <ctime>
 #include <functional>
 #include <initializer_list>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -1325,6 +1328,59 @@ Defaulted grid coordinates is not allowed for COMPDAT as part of ACTIONX)"
 
     std::vector<Well> Schedule::getWellsatEnd() const {
         return this->getWells(this->snapshots.size() - 1);
+    }
+
+    void Schedule::recomputeTrajectoryConnections
+        (const std::vector<std::array<std::array<double,3>, 8>>&                          cellCorners,
+         const std::function<std::optional<WellConnections::TrajectoryCell>(std::size_t)>& cellInfo)
+    {
+        for (auto& snapshot : this->snapshots) {
+            for (const auto& wname : snapshot.wells.keys()) {
+                auto well = snapshot.wells.get(wname);
+
+                if (! well.getConnections().hasTrajectory()) {
+                    continue;
+                }
+
+                // Recompute on a fresh copy of the connection set; collect the
+                // LGRs the intersected cells belong to so the well can be tagged.
+                auto conns = std::make_shared<WellConnections>(well.getConnections());
+
+                std::set<std::string> lgrNames;
+                conns->recomputeTrajectoryConnections(
+                    cellCorners,
+                    [&cellInfo, &lgrNames](std::size_t idx)
+                        -> std::optional<WellConnections::TrajectoryCell>
+                    {
+                        auto info = cellInfo(idx);
+                        if (info.has_value() && ! info->lgr_name.empty()) {
+                            lgrNames.insert(info->lgr_name);
+                        }
+                        return info;
+                    });
+
+                // Nothing intersected against this grid (e.g. the well's cells
+                // are not present on this rank): keep the original connections.
+                if (conns->empty()) {
+                    continue;
+                }
+
+                if (lgrNames.size() == 1) {
+                    // First implementation: the whole trajectory lies in one LGR.
+                    well.set_lgr_well_tag(*lgrNames.begin());
+                }
+                else if (lgrNames.size() > 1) {
+                    OpmLog::warning(fmt::format(
+                        "Well {} trajectory crosses {} LGRs; connections in "
+                        "refined regions are only supported within a single LGR "
+                        "and will not be resolved correctly.",
+                        wname, lgrNames.size()));
+                }
+
+                well.updateConnections(std::move(conns), /*force=*/ true);
+                snapshot.wells.update(std::move(well));
+            }
+        }
     }
 
     std::vector<Well> Schedule::getActiveWellsAtEnd() const {
