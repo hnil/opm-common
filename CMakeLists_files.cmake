@@ -320,6 +320,7 @@ list(APPEND MAIN_SOURCE_FILES
   opm/input/eclipse/Schedule/Well/WVFPDP.cpp
   opm/input/eclipse/Schedule/Well/WVFPEXP.cpp
   opm/input/eclipse/Schedule/WellTraj/RigEclipseWellLogExtractor.cpp
+  opm/input/eclipse/Schedule/WellTraj/RigEclipseWellLogExtractorGrid.cpp
   opm/input/eclipse/Units/Dimension.cpp
   opm/input/eclipse/Units/UnitSystem.cpp
   opm/input/eclipse/Utility/Functional.cpp
@@ -1610,6 +1611,7 @@ list(APPEND PRIVATE_HEADER_FILES
   opm/input/eclipse/Schedule/HandlerContext.hpp
   opm/input/eclipse/Schedule/Well/WellTrajInfo.hpp
   opm/input/eclipse/Schedule/WellTraj/RigEclipseWellLogExtractor.hpp
+  opm/input/eclipse/Schedule/WellTraj/RigEclipseWellLogExtractorGrid.hpp
 )
 
 foreach (name A B C D E F G H I J K L M N O P Q R S T U V W X Y Z)
