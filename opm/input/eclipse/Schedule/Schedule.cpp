@@ -1372,6 +1372,14 @@ Defaulted grid coordinates is not allowed for COMPDAT as part of ACTIONX)"
                     // alone is not enough.
                     well.flag_lgr_well();
                     well.set_lgr_well_tag(*lgrNames.begin());
+
+                    // An LGR well's head must be in LGR-local coordinates: the
+                    // output path (AggregateWellData::staticContribWellHeadLGR)
+                    // maps it back to the father cell via getLGR_fatherIJK, which
+                    // asserts the head lies inside the (refined) LGR grid. The
+                    // trajectory's first connection gives a valid LGR-local head.
+                    const auto& c0 = (*conns)[0];
+                    well.updateHead(c0.getI(), c0.getJ());
                 }
                 else if (lgrNames.size() > 1) {
                     OpmLog::warning(fmt::format(
