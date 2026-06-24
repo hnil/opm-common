@@ -147,6 +147,7 @@ namespace Opm {
             double                ntg{1.0};
             int                   satnum{0};
             std::string           lgr_name{};       //!< owning LGR (empty => coarse cell)
+            int                   lgr_grid{0};       //!< LGR grid number recorded on the connection (0 => coarse)
         };
 
         /// Rebuild the trajectory connections of this well by intersecting the
