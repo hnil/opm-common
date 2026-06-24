@@ -1030,7 +1030,7 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
                                 cell.global_index, rec.state,
                                 cell.depth, ctf_props, satTableId,
                                 direction, ctf_kind,
-                                noConn, 0,
+                                noConn, cell.lgr_grid,
                                 rec.default_sat_table);
         }
         else {
@@ -1044,7 +1044,7 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
                 cell.global_index, compl_num,
                 rec.state, direction, ctf_kind, satTableId,
                 cell.depth, ctf_props,
-                css_ind, rec.default_sat_table
+                css_ind, rec.default_sat_table, cell.lgr_grid
             };
 
             prev->updateSegment(conSegNo, cell.depth, css_ind, *perf_range);
