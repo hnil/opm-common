@@ -1041,6 +1041,7 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
             const auto css_ind = prev->sort_value();
             const auto conSegNo = prev->segment();
             const auto perf_range = prev->perf_range();
+            const auto thermal_length = prev->thermalLength();
 
             *prev = Connection {
                 i, j, k,
@@ -1050,7 +1051,8 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
                 css_ind, rec.default_sat_table, cell.lgr_grid
             };
 
-            prev->updateSegment(conSegNo, cell.depth, css_ind, *perf_range);
+            prev->updateSegment(conSegNo, cell.depth, thermal_length,
+                                css_ind, *perf_range);
         }
     }
 
