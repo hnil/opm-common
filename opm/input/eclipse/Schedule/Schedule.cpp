@@ -1395,6 +1395,46 @@ Defaulted grid coordinates is not allowed for COMPDAT as part of ACTIONX)"
         }
     }
 
+    void Schedule::synthesizeWellTrajectories
+        (const std::function<std::array<double,3>(std::size_t)>& cellCenter,
+         const std::function<std::array<double,3>(std::size_t)>& cellDims)
+    {
+        std::set<std::string> warned;
+
+        for (auto& snapshot : this->snapshots) {
+            for (const auto& wname : snapshot.wells.keys()) {
+                auto well = snapshot.wells.get(wname);
+
+                const auto& conns0 = well.getConnections();
+                if (conns0.hasTrajectory() || conns0.empty()) {
+                    continue;
+                }
+
+                // The trajectory replay rebuilds the connection set from
+                // scratch; it cannot preserve segment attachments, and LGR
+                // wells' connection ijk are LGR-local (not resolvable through
+                // the global-grid geometry callbacks).
+                if (well.isMultiSegment() || well.is_lgr_well()) {
+                    if (warned.insert(wname).second) {
+                        OpmLog::warning(fmt::format(
+                            "Well {} is a {} well; no trajectory is synthesized "
+                            "and its connections will not follow grid refinement.",
+                            wname, well.isMultiSegment() ? "multi-segment" : "LGR"));
+                    }
+                    continue;
+                }
+
+                auto conns = std::make_shared<WellConnections>(conns0);
+                if (! conns->synthesizeTrajectory(cellCenter, cellDims)) {
+                    continue;
+                }
+
+                well.updateConnections(std::move(conns), /*force=*/ true);
+                snapshot.wells.update(std::move(well));
+            }
+        }
+    }
+
     std::vector<Well> Schedule::getActiveWellsAtEnd() const {
         std::vector<Well> wells;
         const auto lastStep = this->snapshots.size() - 1;
