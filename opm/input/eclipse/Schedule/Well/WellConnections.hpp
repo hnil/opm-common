@@ -169,6 +169,26 @@ namespace Opm {
             (const std::vector<std::array<std::array<double,3>, 8>>&                 cellCorners,
              const std::function<std::optional<TrajectoryCell>(std::size_t)>&        cellInfo);
 
+        /// Synthesize a replayable trajectory for a COMPDAT well that has
+        /// none: a polyline through each connection's cell centre, entering
+        /// and leaving along the connection's direction across the cell
+        /// extent, in the connection set's stored order; MD accumulated from
+        /// segment lengths. One TrajPerf per connection carries the
+        /// connection's completion parameters, so the trajectory can be
+        /// replayed through recomputeTrajectoryConnections() against a
+        /// refined grid. The points are stored in grid coordinates (same
+        /// frame as the cell corners the replay intersects against).
+        ///
+        /// \param[in] cellCenter  cell centre (x, y, depth) of the cell with
+        ///            the given connection global index.
+        /// \param[in] cellDims  cell extents (dx, dy, dz) of that cell.
+        ///
+        /// \return Whether a trajectory was synthesized. No-op (false) if
+        ///         this well already has a trajectory or has no connections.
+        bool synthesizeTrajectory
+            (const std::function<std::array<double,3>(std::size_t)>& cellCenter,
+             const std::function<std::array<double,3>(std::size_t)>& cellDims);
+
         std::size_t size() const;
         bool empty() const;
         std::size_t num_open() const;

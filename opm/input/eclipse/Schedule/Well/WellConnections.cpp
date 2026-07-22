@@ -955,6 +955,103 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
         return !this->coord[0].empty();
     }
 
+    bool WellConnections::synthesizeTrajectory
+        (const std::function<std::array<double,3>(std::size_t)>& cellCenter,
+         const std::function<std::array<double,3>(std::size_t)>& cellDims)
+    {
+        if (this->hasTrajectory() || this->m_connections.empty()) {
+            return false;
+        }
+
+        // Extend each in-cell segment slightly beyond the cell faces: the
+        // intersection extractor only records cells through enter/leave face
+        // crossings, so a segment fully interior to one cell would yield no
+        // intersection at all. The sliver spilling into the face neighbours
+        // is removed by the replay's minimum-length filter.
+        constexpr double extend = 1.0 + 1.0e-6;
+
+        double total_md = 0.0;
+        auto appendPoint = [this, &total_md](const std::array<double,3>& p) {
+            if (! this->md.empty()) {
+                const auto seg = std::hypot(p[0] - this->coord[0].back(),
+                                            p[1] - this->coord[1].back(),
+                                            p[2] - this->coord[2].back());
+                if (! (seg > 0.0)) {
+                    return;     // coincident with the previous point
+                }
+                total_md += seg;
+            }
+            for (std::size_t d = 0; d < 3; ++d) {
+                this->coord[d].push_back(p[d]);
+            }
+            this->md.push_back(total_md);
+        };
+
+        for (const auto& conn : this->m_connections) {
+            auto centre = cellCenter(conn.global_index());
+            const auto dims = cellDims(conn.global_index());
+
+            const int axis = (conn.dir() == Connection::Direction::X) ? 0
+                : (conn.dir() == Connection::Direction::Y) ? 1 : 2;
+
+            // Nudge the polyline slightly off the exact cell centre in the
+            // lateral directions: with an even refinement factor the centre
+            // lies exactly on child-cell faces and the intersection would be
+            // degenerate. The offset keeps the line inside the same coarse
+            // cell but strictly inside one child column, and does not affect
+            // the Peaceman CTF (only in-cell lengths enter, not position).
+            for (int d = 0; d < 3; ++d) {
+                if (d != axis) {
+                    centre[d] += 1.0e-3 * dims[d];
+                }
+            }
+
+            auto entry = centre;
+            auto exit = centre;
+            entry[axis] -= 0.5 * dims[axis] * extend;
+            exit[axis] += 0.5 * dims[axis] * extend;
+
+            appendPoint(entry);
+            const double perf_top = total_md;
+            appendPoint(exit);
+            const double perf_bot = total_md;
+
+            if (! (perf_bot > perf_top)) {
+                continue;       // degenerate (zero-extent) cell
+            }
+
+            TrajPerf rec;
+            rec.perf_top = perf_top;
+            rec.perf_bot = perf_bot;
+            rec.rw = conn.rw();
+            rec.skin_factor = conn.skinFactor();
+            rec.d_factor = conn.dFactor();
+
+            // Explicit deck CF/Kh are carried through and reused verbatim by
+            // the replay (documented approximation: no per-child-length
+            // apportioning yet, plan S6c); Peaceman-computed values are left
+            // defaulted so the replay recomputes them per (refined) cell.
+            const bool deck_ctf = (conn.kind() == Connection::CTFKind::DeckValue);
+            rec.user_CF = deck_ctf ? conn.CF() : -1.0;
+            rec.user_Kh = deck_ctf ? conn.Kh() : -1.0;
+
+            rec.default_sat_table = conn.getDefaultSatTabId();
+            rec.sat_table_id = rec.default_sat_table ? -1 : conn.satTableId();
+            rec.state = conn.state();
+
+            this->m_traj_perfs.push_back(rec);
+        }
+
+        if (this->m_traj_perfs.empty()) {
+            // Nothing usable: leave the object without a trajectory.
+            for (auto& c : this->coord) { c.clear(); }
+            this->md.clear();
+            return false;
+        }
+
+        return true;
+    }
+
     // Shared per-cell CTF/Kh computation and connection add/update for
     // trajectory wells. Mirrors the body of loadCOMPTRAJ but is grid-agnostic:
     // the cell geometry/properties are supplied by the caller. Used by
@@ -1126,6 +1223,16 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
                 const auto info = cellInfo(is.globCellIndex);
                 if (! info.has_value()) {
                     continue;   // inactive / absent cell -> skip
+                }
+
+                // Skip slivers where the path merely grazes a cell (e.g. the
+                // deliberate 1e-6 overshoot of synthesized COMPDAT segments
+                // into the face neighbours): they would become spurious
+                // near-zero-CF connections.
+                if (! ((is.endMD - is.startMD) >
+                       1.0e-4 * (rec.perf_bot - rec.perf_top)))
+                {
+                    continue;
                 }
 
                 const auto& v = is.intersectionLengthsInCellCS;
