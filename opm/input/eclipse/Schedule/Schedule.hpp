@@ -358,6 +358,18 @@ namespace Opm {
             (const std::vector<std::array<std::array<double,3>, 8>>&                          cellCorners,
              const std::function<std::optional<WellConnections::TrajectoryCell>(std::size_t)>& cellInfo);
 
+        /// Synthesize replayable trajectories for COMPDAT wells (plan S6b):
+        /// for every well, in every report step, that has connections but no
+        /// WELTRAJ/COMPTRAJ trajectory, build an equivalent trajectory from
+        /// the connection cells (WellConnections::synthesizeTrajectory) so a
+        /// subsequent recomputeTrajectoryConnections() re-derives its
+        /// connections on a refined grid. Multi-segment and LGR wells are
+        /// skipped. The cell geometry callbacks are keyed by the connection's
+        /// global cell index on the (coarse) input grid.
+        void synthesizeWellTrajectories
+            (const std::function<std::array<double,3>(std::size_t)>& cellCenter,
+             const std::function<std::array<double,3>(std::size_t)>& cellDims);
+
         // Get wells that have been active any time during simulation
         std::vector<Well> getActiveWellsAtEnd() const;
 
