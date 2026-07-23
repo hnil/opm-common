@@ -6348,9 +6348,19 @@ void Opm::out::Summary::SummaryImplementation::write(const bool is_final_summary
     // report step that missed information.
     if (const auto& last = this->lastUnwritten(); (this->prevReportStepID_ < this->lastUnwritten().seq
                                                    || is_final_summary)) {
+        // With --enable-write-all-solutions the ministep sequence number is
+        // the (one-based) global timestep index -- see
+        // EclipseIO::Impl::reportIndex() -- which exceeds the number of
+        // schedule snapshots as soon as the run has more timesteps than
+        // report steps.  Clamp the schedule lookup used for the RSTConfig to
+        // the last valid snapshot; for normal report-step sequences this is
+        // the identity.
+        const auto sched_index =
+            std::min(static_cast<std::size_t>(last.seq),
+                     this->sched_.get().size() - 1);
         this->smspec_->write(this->outputParameters_.summarySpecification(),
                              is_final_summary, last.seq,
-                             sched_.get()[last.seq].get<RSTConfig>().get()
+                             sched_.get()[sched_index].get<RSTConfig>().get()
                              .basic.value_or(0));
     }
 
