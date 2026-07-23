@@ -109,6 +109,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <ctime>
+#include <limits>
 #include <functional>
 #include <initializer_list>
 #include <iostream>
@@ -1968,6 +1969,26 @@ File {} line {}.)", pattern, location.keyword, location.filename, location.linen
                                         newConn.kind(),
                                         seqIndex,
                                         /* defaultSatTableID = */ false);
+
+                    // Multisegment wells: forward the segment attribution
+                    // (segment number + measured-depth range) that the caller
+                    // prepared on 'newConn'.  addConnection() cannot carry it,
+                    // and a segment-less connection on an MSW well leaves the
+                    // well model unable to route the completion (observed as
+                    // the well delivering zero rate after a fracture-driven
+                    // connection update).
+                    if (newConn.attachedToSegment()) {
+                        if (auto* added =
+                                conns.maybeGetFromGlobalIndex(newConn.global_index());
+                            added != nullptr)
+                        {
+                            added->updateSegment(newConn.segment(),
+                                                 newConn.depth(),
+                                                 newConn.thermalLength(),
+                                                 std::numeric_limits<std::size_t>::max(),
+                                                 newConn.perf_range());
+                        }
+                    }
                 }
             }
 
