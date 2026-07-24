@@ -6348,9 +6348,22 @@ void Opm::out::Summary::SummaryImplementation::write(const bool is_final_summary
     // report step that missed information.
     if (const auto& last = this->lastUnwritten(); (this->prevReportStepID_ < this->lastUnwritten().seq
                                                    || is_final_summary)) {
+        // 'last.seq' is the ministep sequence number.  For ordinary report-step
+        // output it equals the report step and indexes the schedule directly.
+        // With --enable-write-all-solutions, however, substep output uses
+        // reportIndex() == time_step + 1, i.e. a cumulative timestep counter
+        // that can exceed the number of report steps (especially on runs with
+        // many small steps, e.g. an evolving fracture).  The schedule is indexed
+        // by report step, so clamp the RPTRST-'basic' lookup to the valid range
+        // instead of overrunning it.  Only this metadata lookup is affected;
+        // the summary values and the SEQHDR/MINISTEP numbering are unchanged.
+        const auto nsched = this->sched_.get().size();
+        const auto rstStep = (nsched > 0 && static_cast<std::size_t>(last.seq) >= nsched)
+            ? (nsched - 1)
+            : static_cast<std::size_t>(last.seq);
         this->smspec_->write(this->outputParameters_.summarySpecification(),
                              is_final_summary, last.seq,
-                             sched_.get()[last.seq].get<RSTConfig>().get()
+                             sched_.get()[rstStep].get<RSTConfig>().get()
                              .basic.value_or(0));
     }
 
