@@ -994,15 +994,21 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
             const int axis = (conn.dir() == Connection::Direction::X) ? 0
                 : (conn.dir() == Connection::Direction::Y) ? 1 : 2;
 
-            // Nudge the polyline slightly off the exact cell centre in the
-            // lateral directions: with an even refinement factor the centre
-            // lies exactly on child-cell faces and the intersection would be
-            // degenerate. The offset keeps the line inside the same coarse
-            // cell but strictly inside one child column, and does not affect
-            // the Peaceman CTF (only in-cell lengths enter, not position).
+            // Nudge the polyline off the exact cell centre in the lateral
+            // directions, by a *different* fraction per direction. The
+            // intersection machinery triangulates each face as a fan around
+            // the face centre, and an axis-aligned path through the centre
+            // (or, with equal offsets, along the face diagonal) runs exactly
+            // on fan-triangle edges where the hit test fails erratically.
+            // Irrational-ratio offsets stay clear of the centre, the
+            // diagonals and any child-face plane of a later refinement, for
+            // every refinement factor. With an even factor they also select
+            // one child column deterministically. The Peaceman CTF is
+            // unaffected (only in-cell lengths enter, not position).
+            constexpr double nudge[3] = { 0.017259, 0.030502, 0.023607 };
             for (int d = 0; d < 3; ++d) {
                 if (d != axis) {
-                    centre[d] += 1.0e-3 * dims[d];
+                    centre[d] += nudge[d] * dims[d];
                 }
             }
 
