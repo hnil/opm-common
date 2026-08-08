@@ -1388,6 +1388,14 @@ Defaulted grid coordinates is not allowed for COMPDAT as part of ACTIONX)"
                         "and will not be resolved correctly.",
                         wname, lgrNames.size()));
                 }
+                else if (well.is_lgr_well()) {
+                    // The replay landed entirely on unrefined cells (the LGR
+                    // the well used to sit in is gone, e.g. LGROFF): revert to
+                    // a standard global-grid well, mirroring the flag branch.
+                    well.unflag_lgr_well();
+                    const auto& c0 = (*conns)[0];
+                    well.updateHead(c0.getI(), c0.getJ());
+                }
 
                 well.updateConnections(std::move(conns), /*force=*/ true);
                 snapshot.wells.update(std::move(well));

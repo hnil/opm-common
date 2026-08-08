@@ -636,6 +636,12 @@ void Well::flag_lgr_well(void)
     ref_type = WellRefinementType::LGR;
 }
 
+void Well::unflag_lgr_well(void)
+{
+    ref_type = WellRefinementType::STANDARD;
+    lgr_tag.clear();
+}
+
 void Well::setInsertIndexLGR(const std::size_t index)
 {
     this->insert_index_lgr = index;

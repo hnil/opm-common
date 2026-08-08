@@ -106,6 +106,7 @@ public:
     using GasInflowEquation = WellGasInflowEquation;
 
     void flag_lgr_well();
+    void unflag_lgr_well();
     void set_lgr_well_tag(const std::string& lgr_tag_name);
     void setInsertIndexLGR(const std::size_t index);
     void setInsertIndexAllLGR(const std::size_t index);
