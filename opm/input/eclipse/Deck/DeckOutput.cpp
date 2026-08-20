@@ -104,6 +104,18 @@ namespace Opm {
     }
 
 
+    void DeckOutput::flush_defaults( ) {
+        if (this->default_count == 0) {
+            return;
+        }
+
+        write_sep( );
+        this->os << this->default_count << "*";
+        this->default_count = 0;
+        this->row_count++;
+    }
+
+
     void DeckOutput::start_keyword(const std::string& kw, bool split_line_arg) {
         this->os << kw << std::endl;
         this->split_line = split_line_arg;
