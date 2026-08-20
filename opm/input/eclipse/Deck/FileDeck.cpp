@@ -557,23 +557,28 @@ void FileDeck::dump_stdout(const std::string& output_dir,
 void FileDeck::rst_solution(const std::string& rst_base,
                             const int report_step)
 {
-    auto index = this->find("SOLUTION").value();
-    auto summary_index = this->find("SUMMARY").value();
+    // Collect first, erase after. An Index is a (file, keyword) pair, so
+    // erasing a keyword only shifts the positions in that keyword's own file:
+    // walking towards SUMMARY while decrementing its index for every erase
+    // assumes the whole section sits in one file, and steps SUMMARY backwards
+    // for nothing as soon as the section contains an INCLUDE. The walk then
+    // never meets it and runs off the end of the deck. Norne's SOLUTION
+    // includes its equilibration data, so every restart step hit that.
+    auto doomed = std::vector<Index>{};
+    {
+        const auto summary_index = this->find("SUMMARY").value();
+        auto index = this->find("SOLUTION").value();
 
-    ++index;
+        for (++index; index != summary_index; ++index) {
+            if (::rst_keep_in_solution.count((*this)[index].name()) == 0) {
+                doomed.push_back(index);
+            }
+        }
+    }
 
-    while (true) {
-        if (::rst_keep_in_solution.count((*this)[index].name()) == 0) {
-            this->erase(index);
-            --summary_index;
-        }
-        else {
-            ++index;
-        }
-
-        if (index == summary_index) {
-            break;
-        }
+    // Back to front, so the positions still standing are the ones not yet used.
+    for (auto index = doomed.rbegin(); index != doomed.rend(); ++index) {
+        this->erase(*index);
     }
 
     {
