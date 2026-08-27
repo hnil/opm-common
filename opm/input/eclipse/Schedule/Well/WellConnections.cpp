@@ -775,6 +775,29 @@ The cell ({},{},{}) in well {} is not active and the connection will be ignored)
         points.push_back(p_bot);
         measured_depths.push_back(m_bot);
 
+        // Restore general position.  A trajectory that lies exactly on a cell
+        // corner, a cell edge, or the diagonal that splits a quad cell face into
+        // two triangles makes the well path extractor emit coincident
+        // enter/leave events.  Those collapse into one entry in its std::map
+        // (RigWellLogExtractionTools.h: "Completely equal: intersections at cell
+        // edges or corners or edges of the face triangles"), the pairing loop
+        // then discards the unmatched points, and the record can end up adding
+        // no connections at all -- a well that is open, on rate control, and
+        // connected to nothing.  Whether the degeneracy is hit depends on how
+        // the grid coordinates happen to accumulate in floating point, so it
+        // appears and disappears with grid size for one and the same well.
+        // Displacing the path by a sub-micron, grid-incommensurate amount removes
+        // the whole class; it is orders of magnitude below anything the
+        // connection factors resolve.
+        {
+            constexpr auto eps = std::array { 1.0e-6, 1.618034e-6, 2.618034e-6 };
+            for (auto& pt : points) {
+                for (std::size_t d = 0; d < 3; ++d) {
+                    pt[d] += eps[d];
+                }
+            }
+        }
+
         wellTraj.wellPathGeometry->setWellPathPoints(points);
         wellTraj.wellPathGeometry->setMeasuredDepths(measured_depths);
 
@@ -791,6 +814,8 @@ The cell ({},{},{}) in well {} is not active and the connection will be ignored)
         // This gives the intersected grid cells IJK, cell face entrance &
         // exit cell face point and connection length.
         wellTraj.intersections = e->cellIntersectionInfosAlongWellPath();
+
+        const auto numConnBefore = this->m_connections.size();
 
         for (std::size_t is = 0; is < wellTraj.intersections.size(); ++is) {
             const auto ijk = ecl_grid->getIJK(wellTraj.intersections[is].globCellIndex);
@@ -927,6 +952,20 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
                 prev->updateSegment(conSegNo, cell.depth, thermal_length,
                                     css_ind, *perf_range);
             }
+        }
+
+        if (this->m_connections.size() == numConnBefore) {
+            // Nothing was added.  Legitimate if the perforation interval misses
+            // the grid or lands entirely in inactive cells -- but it is also what
+            // a failed trajectory/grid intersection looks like, and that failure
+            // is otherwise silent: the well stays open on its control with no
+            // connections and simply injects or produces nothing.
+            OpmLog::warning(fmt::format(R"(Problem with COMPTRAJ keyword
+In {} line {}
+Well {} got no connections from its trajectory over the perforation interval
+{} to {}.  The well will not flow.)",
+                                        location.filename, location.lineno, wname,
+                                        m_top, m_bot));
         }
     }
 

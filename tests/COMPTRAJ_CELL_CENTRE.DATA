@@ -1,0 +1,53 @@
+-- Regression case for a COMPTRAJ trajectory in degenerate position.
+--
+-- A vertical well at x = y = 1000 m on a 33 x 33 grid of 2000/33 m cells sits at
+-- the exact centre of cell (17,17).  The path then runs along the diagonal that
+-- splits each horizontal cell face into two triangles, the extractor emits
+-- coincident enter/leave events, and before the general-position displacement in
+-- WellConnections::loadCOMPTRAJ this produced ZERO connections -- silently.
+-- The same well is fine on 11, 13, 15, 17, 21, 27 and 41 cells, so the case has
+-- to pin the geometry exactly.
+RUNSPEC
+DIMENS
+  33 33 5 /
+OIL
+WATER
+METRIC
+START
+ 1 'JAN' 2020 /
+WELLDIMS
+ 5 10 10 5 /
+UNIFIN
+UNIFOUT
+GRID
+INIT
+TOPS
+  1089*1900 /
+DXV
+  33*60.60606061 /
+DYV
+  33*60.60606061 /
+DZV
+  5*20 /
+EQUALS
+  PERMX 100 6* /
+  PERMY 100 6* /
+  PERMZ 10  6* /
+  PORO  0.25 6* /
+/
+PROPS
+SOLUTION
+SCHEDULE
+WELSPECS
+ 'PROD' 'G1' 1* 1* 1* 'OIL' 2* 'SHUT' /
+/
+WELTRAJ
+-- WELL BRANCH   X      Y      TVD     MD
+ 'PROD' 1*     1000   1000     0.0     0.0 /
+ 'PROD' 1*     1000   1000  2100.0  2100.0 /
+/
+COMPTRAJ
+-- WELL BRANCH PERF_TOP PERF_BOT  ...  DIAM
+ 'PROD' 1*      1940.0   1980.0  1*  1*  1*  1*  1*  0.216  1* 1* 1* /
+/
+END

@@ -742,6 +742,29 @@ BOOST_AUTO_TEST_CASE(loadCOMPTRAJTESTSPE1) {
     }
 }
 
+BOOST_AUTO_TEST_CASE(loadCOMPTRAJ_trajectory_on_cell_face_diagonal) {
+    // A vertical trajectory sitting exactly on the diagonal that splits each
+    // horizontal cell face into triangles used to yield zero connections, with no
+    // error: the well stayed open on its control and simply did not flow.  See
+    // the comment in WellConnections::loadCOMPTRAJ.
+    Opm::Parser parser;
+
+    const auto deck = parser.parseFile("COMPTRAJ_CELL_CENTRE.DATA");
+    auto python = std::make_shared<Opm::Python>();
+    Opm::EclipseState state(deck);
+    Opm::Schedule sched(deck, state, python);
+
+    const auto& connections = sched.getWell("PROD", 0).getConnections();
+
+    // 1940 - 1980 m spans layers 3 and 4 of the 20 m layers below TOPS = 1900.
+    BOOST_CHECK_EQUAL(connections.size(), 2);
+    for (const auto& c : connections) {
+        BOOST_CHECK_EQUAL(c.getI(), 16);   // zero-based centre of 33
+        BOOST_CHECK_EQUAL(c.getJ(), 16);
+        BOOST_CHECK_GT(c.CF(), 0.0);
+    }
+}
+
 BOOST_AUTO_TEST_CASE(loadCOMPTRAJTESTSPE1_2) {
     Opm::Parser parser;
 
