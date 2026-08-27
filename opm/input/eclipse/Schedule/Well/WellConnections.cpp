@@ -298,6 +298,18 @@ Connection ({},{},{}) (direction '{}') for well {} ignored because
         return connection_factor;
     }
 
+    // A path exactly on a cell corner, edge or face diagonal yields coincident
+    // enter/leave events the extractor drops; a sub-micron shift avoids that.
+    void restoreGeneralPosition(std::vector<external::cvf::Vec3d>& points)
+    {
+        constexpr auto eps = std::array { 1.0e-6, 1.618034e-6, 2.618034e-6 };
+        for (auto& pt : points) {
+            for (std::size_t d = 0; d < 3; ++d) {
+                pt[d] += eps[d];
+            }
+        }
+    }
+
 } // anonymous namespace
 
 namespace Opm {
@@ -833,6 +845,8 @@ The cell ({},{},{}) in well {} is not active and the connection will be ignored)
         points.push_back(p_bot);
         measured_depths.push_back(m_bot);
 
+        restoreGeneralPosition(points);
+
         wellTraj.wellPathGeometry->setWellPathPoints(points);
         wellTraj.wellPathGeometry->setMeasuredDepths(measured_depths);
 
@@ -868,6 +882,8 @@ The cell ({},{},{}) in well {} is not active and the connection will be ignored)
             rec.state = state;
             this->m_traj_perfs.push_back(rec);
         }
+
+        const auto numConnBefore = this->m_connections.size();
 
         for (std::size_t is = 0; is < wellTraj.intersections.size(); ++is) {
             const auto ijk = ecl_grid->getIJK(wellTraj.intersections[is].globCellIndex);
@@ -1004,6 +1020,16 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
                 prev->updateSegment(conSegNo, cell.depth, thermal_length,
                                     css_ind, *perf_range);
             }
+        }
+
+        if (this->m_connections.size() == numConnBefore) {
+            // Legitimate when the interval misses the grid, but never silent.
+            OpmLog::warning(fmt::format(R"(Problem with COMPTRAJ keyword
+In {} line {}
+Well {} got no connections from its trajectory over the perforation interval
+{} to {}.  The well will not flow.)",
+                                        location.filename, location.lineno, wname,
+                                        m_top, m_bot));
         }
     }
 
@@ -1268,6 +1294,7 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
             }
             points.push_back(p_bot);
             measured_depths.push_back(rec.perf_bot);
+            restoreGeneralPosition(points);
 
             external::cvf::ref<external::RigWellPath> wellPathGeometry {
                 new external::RigWellPath
