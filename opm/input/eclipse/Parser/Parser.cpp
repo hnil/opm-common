@@ -18,6 +18,8 @@
 */
 
 #include <opm/input/eclipse/Parser/Parser.hpp>
+#include <opm/input/eclipse/EclipseState/Grid/WellRefinement.hpp>
+#include <opm/input/eclipse/Deck/DeckValue.hpp>
 
 #include <opm/common/OpmLog/OpmLog.hpp>
 #include <opm/common/OpmLog/LogUtil.hpp>
@@ -1691,6 +1693,50 @@ bool parseState( ParserState& parserState, const Parser& parser, ErrorGuard& err
         return parse(deck, context).getInputGrid();
     }
 
+    // WELLREF names wells, and wells are known only once the whole deck is
+    // parsed, so the keyword is expanded here into ordinary CARFIN blocks
+    // placed right after it in the GRID section. Everything downstream --
+    // grid refinement, output, post-processors -- then sees deck LGRs.
+    static void expandWellRefinement(Deck& deck, const Parser& parser)
+    {
+        if (!deck.hasKeyword("WELLREF")) {
+            return;
+        }
+        const auto boxes = wellRefinementBoxes(deck);
+        if (boxes.empty()) {
+            return;
+        }
+        const auto& carfin = parser.getKeyword("CARFIN");
+        const auto& endfin = parser.getKeyword("ENDFIN");
+        const auto& active = deck.getActiveUnitSystem();
+        const auto& dflt = deck.getDefaultUnitSystem();
+        std::vector<DeckKeyword> generated;
+        for (const auto& b : boxes) {
+            std::vector<std::vector<DeckValue>> record{{
+                DeckValue(b.name),
+                DeckValue(b.lo[0]), DeckValue(b.hi[0]),
+                DeckValue(b.lo[1]), DeckValue(b.hi[1]),
+                DeckValue(b.lo[2]), DeckValue(b.hi[2]),
+                DeckValue(b.nxyz[0]), DeckValue(b.nxyz[1]), DeckValue(b.nxyz[2]),
+                DeckValue(0),
+                DeckValue(b.parent),
+            }};
+            generated.emplace_back(carfin, record, active, dflt);
+            generated.emplace_back(endfin);
+            OpmLog::info(fmt::format("WELLREF: CARFIN '{}' on {}: cells [{},{}]x[{},{}]x[{},{}] -> {}x{}x{}",
+                                     b.name, b.parent, b.lo[0], b.hi[0], b.lo[1], b.hi[1],
+                                     b.lo[2], b.hi[2], b.nxyz[0], b.nxyz[1], b.nxyz[2]));
+        }
+        std::size_t pos = 0;
+        for (const auto& kw : deck) {
+            ++pos;
+            if (kw.name() == "WELLREF") {
+                break;
+            }
+        }
+        deck.insertKeywords(pos, std::move(generated));
+    }
+
     Deck Parser::parseFile(const std::string&  dataFileName,
                            const ParseContext& parseContext,
                            ErrorGuard& errors,
@@ -1750,6 +1796,7 @@ bool parseState( ParserState& parserState, const Parser& parser, ErrorGuard& err
         if (ignore.size() > 0)
             cleanup_deck_keyword_list(parserState, ignore);
 
+        expandWellRefinement(parserState.deck, *this);
         parserState.deck.scopeLgrBlockKeywords();
 
         return std::move( parserState.deck );
@@ -1780,6 +1827,7 @@ bool parseState( ParserState& parserState, const Parser& parser, ErrorGuard& err
         ParserState parserState( this->codeKeywords(), parseContext, errors, this->m_python );
         parserState.loadString( data );
         parseState( parserState, *this, errors );
+        expandWellRefinement(parserState.deck, *this);
         parserState.deck.scopeLgrBlockKeywords();
         return std::move( parserState.deck );
     }
