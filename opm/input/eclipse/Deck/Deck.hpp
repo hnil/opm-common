@@ -130,6 +130,8 @@ namespace Opm {
             /// block's LGR name, so they stop counting as global-grid keywords.
             /// Call once, after parsing.
             void scopeLgrBlockKeywords();
+            /// Insert keywords before position pos (pos == size() appends).
+            void insertKeywords(std::size_t pos, std::vector<DeckKeyword> keywords);
 
             /// The keywords bracketed by the named LGR's CARFIN...ENDFIN pair,
             /// in deck order. They describe the refined block and are absent

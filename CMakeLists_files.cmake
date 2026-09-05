@@ -114,6 +114,7 @@ list(APPEND MAIN_SOURCE_FILES
   opm/input/eclipse/EclipseState/Grid/Carfin.cpp
   opm/input/eclipse/EclipseState/Grid/CarfinManager.cpp
   opm/input/eclipse/EclipseState/Grid/LgrCollection.cpp
+  opm/input/eclipse/EclipseState/Grid/WellRefinement.cpp
   opm/input/eclipse/EclipseState/Grid/EclipseGrid.cpp
   opm/input/eclipse/EclipseState/Grid/FieldData.cpp
   opm/input/eclipse/EclipseState/Grid/FieldProps.cpp
@@ -685,6 +686,7 @@ list(APPEND TEST_SOURCE_FILES
   tests/parser/WellTracerTests.cpp
   tests/parser/WellTests.cpp
   tests/parser/WellTestsLGR.cpp
+  tests/parser/WellRefinementTests.cpp
   tests/parser/WLIST.cpp
   tests/parser/WriteRestartFileEventsTests.cpp
   tests/parser/WTEST.cpp
@@ -996,6 +998,7 @@ list(APPEND PUBLIC_HEADER_FILES
   opm/input/eclipse/EclipseState/Grid/BoxManager.hpp
   opm/input/eclipse/EclipseState/Grid/Carfin.hpp
   opm/input/eclipse/EclipseState/Grid/CarfinManager.hpp
+  opm/input/eclipse/EclipseState/Grid/WellRefinement.hpp
   opm/input/eclipse/EclipseState/Grid/EclipseGrid.hpp
   opm/input/eclipse/EclipseState/Grid/FIPRegionStatistics.hpp
   opm/input/eclipse/EclipseState/Grid/FaceDir.hpp
