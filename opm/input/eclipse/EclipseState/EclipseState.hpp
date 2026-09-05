@@ -116,6 +116,9 @@ namespace Opm {
         const GridDims& gridDims() const;
 
         const LgrCollection& getLgrs() const;
+        /// True when the deck refined around wells (WELLREF): the LGRs were
+        /// generated, and wells inside them are placed by trajectory replay.
+        bool hasWellRefinement() const { return m_wellRefinement; }
         bool hasInputLGR() const;
 
         // the unit system used by the deck. note that it is rarely needed
@@ -165,6 +168,7 @@ namespace Opm {
             serializer(m_pinchNnc);
             serializer(m_gridDims);
             serializer(m_lgrs);
+            serializer(m_wellRefinement);
             serializer(m_simulationConfig);
             serializer(aquifer_config);
             serializer(compositional_config),
@@ -210,6 +214,7 @@ namespace Opm {
         GridDims m_gridDims;
         FieldPropsManager field_props;
         LgrCollection m_lgrs;
+        bool m_wellRefinement = false;
         SimulationConfig m_simulationConfig;
         AquiferConfig aquifer_config;
         CompositionalConfig compositional_config;

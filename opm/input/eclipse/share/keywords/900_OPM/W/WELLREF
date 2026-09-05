@@ -1,0 +1,53 @@
+{
+  "name": "WELLREF",
+  "sections": [
+    "GRID"
+  ],
+  "comment": "Nested refinement rings around wells, expanded into CARFIN blocks at parse time.",
+  "items": [
+    {
+      "name": "WELL",
+      "value_type": "STRING"
+    },
+    {
+      "name": "NX",
+      "value_type": "INT",
+      "default": 3
+    },
+    {
+      "name": "NY",
+      "value_type": "INT",
+      "default": 3
+    },
+    {
+      "name": "NZ",
+      "value_type": "INT",
+      "default": 1
+    },
+    {
+      "name": "RING1",
+      "value_type": "INT",
+      "default": 1
+    },
+    {
+      "name": "RING2",
+      "value_type": "INT",
+      "default": 0
+    },
+    {
+      "name": "RING3",
+      "value_type": "INT",
+      "default": 0
+    },
+    {
+      "name": "LAYERS",
+      "value_type": "STRING",
+      "default": "PERF"
+    },
+    {
+      "name": "KLAYERS",
+      "value_type": "INT",
+      "default": 0
+    }
+  ]
+}

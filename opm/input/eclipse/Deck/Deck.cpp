@@ -128,6 +128,14 @@ const DeckView& Deck::global_view() const {
         this->m_global_view = nullptr;
     }
 
+    void Deck::insertKeywords(std::size_t pos, std::vector<DeckKeyword> keywords)
+    {
+        pos = std::min(pos, this->keywordList.size());
+        this->keywordList.insert(this->keywordList.begin() + pos,
+                                 std::make_move_iterator(keywords.begin()),
+                                 std::make_move_iterator(keywords.end()));
+    }
+
     void Deck::scopeLgrBlockKeywords()
     {
         // A CARFIN...ENDFIN pair brackets keywords that describe the refined
