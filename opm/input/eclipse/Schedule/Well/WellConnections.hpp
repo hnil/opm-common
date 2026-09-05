@@ -26,10 +26,13 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
 namespace Opm {
+
+class LgrCollection;
     class ActiveGridCells;
     class DeckRecord;
     class EclipseGrid;
@@ -165,6 +168,17 @@ namespace Opm {
         ///
         /// Does nothing if this well has no retained trajectory. Reuses the
         /// same CTF/Kh computation as loadCOMPTRAJ.
+        /// Move every coarse-grid connection that lies inside a refinement box
+        /// into the innermost LGR covering it: the parent cell's centre column
+        /// laterally, every refined cell along the connection's own direction.
+        /// Connection factors are rescaled per child (deck values by length,
+        /// computed ones by length and the Peaceman radius); nothing needs a
+        /// grid. gridNumberOf maps an LGR name to its connection grid number.
+        /// Returns true when a connection moved; lgrNames collects the LGRs used.
+        bool refineIntoLgrs(const LgrCollection& lgrs,
+                            const std::function<int(const std::string&)>& gridNumberOf,
+                            std::set<std::string>& lgrNames);
+
         void recomputeTrajectoryConnections
             (const std::vector<std::array<std::array<double,3>, 8>>&                 cellCorners,
              const std::function<std::optional<TrajectoryCell>(std::size_t)>&        cellInfo);

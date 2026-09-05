@@ -50,6 +50,7 @@
 #include <vector>
 
 namespace Opm {
+    class LgrCollection;
     class ActiveGridCells;
     class Deck;
     class DeckKeyword;
@@ -354,6 +355,11 @@ namespace Opm {
         ///            \p cellInfo is queried with.
         /// \param[in] cellInfo  properties (incl. LGR-local ijk and owning LGR
         ///            name) of the intersected cell, or std::nullopt to skip it.
+        /// Move COMPDAT connections that lie inside a refinement box into the
+        /// innermost LGR covering them (WellConnections::refineIntoLgrs), tagging
+        /// the well; wells with a trajectory are left to the replay.
+        void refineConnectionsIntoLgrs(const LgrCollection& lgrs);
+
         void recomputeTrajectoryConnections
             (const std::vector<std::array<std::array<double,3>, 8>>&                          cellCorners,
              const std::function<std::optional<WellConnections::TrajectoryCell>(std::size_t)>& cellInfo);
