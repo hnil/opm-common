@@ -144,7 +144,10 @@ wellRefinementBoxes(const std::vector<WellRefinementRecord>& records,
             }
         }
         if (seeds.empty()) {
-            OpmLog::warning(fmt::format("WELLREF: no completed well matches '{}'; ignored.", rec.pattern));
+            OpmLog::warning(fmt::format("WELLREF: no COMPDAT-completed well matches '{}'; ignored. "
+                                        "A well completed by COMPDATL or COMPTRAJ cannot seed a "
+                                        "refinement: its cells are not in the global grid.",
+                                        rec.pattern));
             continue;
         }
 
