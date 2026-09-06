@@ -27,6 +27,12 @@
 #include <opm/input/eclipse/Deck/DeckItem.hpp>
 #include <opm/input/eclipse/EclipseState/Grid/WellRefinement.hpp>
 #include <opm/input/eclipse/Parser/Parser.hpp>
+#include <opm/input/eclipse/EclipseState/EclipseState.hpp>
+#include <opm/input/eclipse/EclipseState/Grid/EclipseGrid.hpp>
+#include <opm/input/eclipse/Schedule/Schedule.hpp>
+#include <opm/input/eclipse/Schedule/Well/Connection.hpp>
+#include <opm/input/eclipse/Schedule/Well/Well.hpp>
+#include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 
 #include <array>
 #include <string>
@@ -112,4 +118,65 @@ BOOST_AUTO_TEST_CASE(DefaultedCompdatPositionTakesTheWellHead)
     BOOST_CHECK((one[0].lo == std::array<int,3>{11, 19, 19}));
     BOOST_CHECK((one[0].hi == std::array<int,3>{13, 21, 21}));
     BOOST_CHECK((one[0].nxyz == std::array<int,3>{6, 6, 3}));
+}
+
+namespace {
+
+const std::string nestedDeck = R"(RUNSPEC
+DIMENS
+5 5 1 /
+GRID
+CARFIN
+'OUT'  2  4  2  4  1  1  9  9  1 /
+ENDFIN
+CARFIN
+'IN'   4  6  4  6  1  1  9  9  1  1* 'OUT' /
+ENDFIN
+INIT
+DX
+ 25*100 /
+DY
+ 25*100 /
+DZ
+ 25*10 /
+TOPS
+ 25*2000 /
+PORO
+ 25*0.3 /
+PERMX
+ 25*500 /
+PERMY
+ 25*500 /
+PERMZ
+ 25*50 /
+SCHEDULE
+WELSPECL
+ 'PROD' 'G' 'IN' 5 5 1* 'OIL' /
+/
+COMPDATL
+ 'PROD' 'IN' 5 5 1 1 'OPEN' 1* 1* 0.2 /
+/
+)";
+
+} // anonymous namespace
+
+BOOST_AUTO_TEST_CASE(CompdatlInNestedLgr)
+{
+    const auto deck = Opm::Parser{}.parseString(nestedDeck);
+    const auto es = Opm::EclipseState { deck };
+    const auto labels = es.getInputGrid().get_all_labels();
+    BOOST_REQUIRE_EQUAL(labels.size(), std::size_t{3});
+    BOOST_CHECK_EQUAL(labels[1], "OUT");
+    BOOST_CHECK_EQUAL(labels[2], "IN");
+
+    const auto sched = Opm::Schedule { deck, es };
+    const auto& well = sched.getWell("PROD", 0);
+    BOOST_CHECK(well.is_lgr_well());
+    BOOST_CHECK_EQUAL(well.get_lgr_well_tag().value(), "IN");
+    const auto& conns = well.getConnections();
+    BOOST_REQUIRE_EQUAL(conns.size(), std::size_t{1});
+    BOOST_CHECK_EQUAL(conns[0].get_lgr_level(), 2);
+    BOOST_CHECK_EQUAL(conns[0].getI(), 4);
+    BOOST_CHECK_EQUAL(conns[0].getJ(), 4);
+    BOOST_CHECK(conns[0].CF() > 0.0);
 }
