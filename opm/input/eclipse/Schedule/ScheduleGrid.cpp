@@ -133,6 +133,15 @@ const Opm::EclipseGrid* Opm::ScheduleGrid::get_grid() const
 
 int Opm::ScheduleGrid::get_lgr_grid_number(const std::optional<std::string>& lgr_label) const
 {
+    if (lgr_label.has_value() && !this->label_to_index.get().contains(*lgr_label)) {
+        std::string known;
+        for (const auto& [name, idx] : this->label_to_index.get()) {
+            known += (known.empty() ? "" : ", ") + name + "=" + std::to_string(idx);
+        }
+        throw std::invalid_argument {
+            "LGR '" + *lgr_label + "' is not a grid the schedule knows; known: " + known
+        };
+    }
     return lgr_label.has_value()
         ? static_cast<int>(label_to_index.get().at(*lgr_label))
         : 0;
