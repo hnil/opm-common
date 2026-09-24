@@ -24,11 +24,15 @@
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
 namespace Opm {
+
+class LgrCollection;
     class ActiveGridCells;
     class DeckRecord;
     class EclipseGrid;
@@ -129,6 +133,79 @@ namespace Opm {
         int getHeadI() const;
         int getHeadJ() const;
         const std::vector<double>& getMD() const;
+
+        /// Whether this connection set was generated from a well trajectory
+        /// (WELTRAJ/COMPTRAJ) rather than from explicit COMPDAT cells.
+        bool hasTrajectory() const;
+
+        /// Per-cell geometry/properties needed to (re)build a trajectory
+        /// connection against an arbitrary grid. Supplied by the caller of
+        /// recomputeTrajectoryConnections() for each intersected cell.
+        struct TrajectoryCell {
+            std::array<int, 3>    ijk{};            //!< index recorded on the connection (LGR-local when lgr_name set, else cartesian)
+            std::size_t           global_index{};   //!< grid cell index recorded on the connection
+            double                depth{};          //!< cell centre depth
+            std::array<double, 3> perm{};           //!< permx, permy, permz
+            std::array<double, 3> dimensions{};     //!< cell extent dx, dy, dz
+            double                ntg{1.0};
+            int                   satnum{0};
+            std::string           lgr_name{};       //!< owning LGR (empty => coarse cell)
+            int                   lgr_grid{0};       //!< LGR grid number recorded on the connection (0 => coarse)
+        };
+
+        /// Rebuild the trajectory connections of this well by intersecting the
+        /// retained WELTRAJ trajectory against an explicitly supplied grid
+        /// geometry -- e.g. a locally refined (LGR) leaf grid -- instead of the
+        /// coarse EclipseGrid used at parse time (loadCOMPTRAJ).
+        ///
+        /// \param[in] cellCorners  per-cell eight corner points (OPM/ECL
+        ///            getCornerPos order), indexed by the cell index that
+        ///            cellInfo() is queried with.
+        /// \param[in] cellInfo  returns the properties of the intersected cell
+        ///            with the given index, or std::nullopt if it must be
+        ///            skipped (e.g. inactive). The recorded connection uses the
+        ///            ijk/global_index from this callback.
+        ///
+        /// Does nothing if this well has no retained trajectory. Reuses the
+        /// same CTF/Kh computation as loadCOMPTRAJ.
+        /// Move every coarse-grid connection that lies inside a refinement box
+        /// into the innermost LGR covering it: the parent cell's centre column
+        /// laterally, every refined cell along the connection's own direction.
+        /// Connection factors are rescaled per child (deck values by length,
+        /// computed ones by length and the Peaceman radius); nothing needs a
+        /// grid. gridNumberOf maps an LGR name to its connection grid number.
+        /// Returns true when a connection moved; lgrNames collects the LGRs used.
+        /// The connections in one LGR (by grid number), ordered as output(grid).
+        std::vector<const Connection*> output(const EclipseGrid& grid, int lgr_grid_number) const;
+
+        bool refineIntoLgrs(const LgrCollection& lgrs,
+                            const std::function<int(const std::string&)>& gridNumberOf,
+                            std::set<std::string>& lgrNames);
+
+        void recomputeTrajectoryConnections
+            (const std::vector<std::array<std::array<double,3>, 8>>&                 cellCorners,
+             const std::function<std::optional<TrajectoryCell>(std::size_t)>&        cellInfo);
+
+        /// Synthesize a replayable trajectory for a COMPDAT well that has
+        /// none: a polyline through each connection's cell centre, entering
+        /// and leaving along the connection's direction across the cell
+        /// extent, in the connection set's stored order; MD accumulated from
+        /// segment lengths. One TrajPerf per connection carries the
+        /// connection's completion parameters, so the trajectory can be
+        /// replayed through recomputeTrajectoryConnections() against a
+        /// refined grid. The points are stored in grid coordinates (same
+        /// frame as the cell corners the replay intersects against).
+        ///
+        /// \param[in] cellCenter  cell centre (x, y, depth) of the cell with
+        ///            the given connection global index.
+        /// \param[in] cellDims  cell extents (dx, dy, dz) of that cell.
+        ///
+        /// \return Whether a trajectory was synthesized. No-op (false) if
+        ///         this well already has a trajectory or has no connections.
+        bool synthesizeTrajectory
+            (const std::function<std::array<double,3>(std::size_t)>& cellCenter,
+             const std::function<std::array<double,3>(std::size_t)>& cellDims);
+
         std::size_t size() const;
         bool empty() const;
         std::size_t num_open() const;
@@ -201,6 +278,7 @@ namespace Opm {
             serializer(this->m_connections);
             serializer(this->coord);
             serializer(this->md);
+            serializer(this->m_traj_perfs);
         }
 
     private:
@@ -211,6 +289,40 @@ namespace Opm {
 
         std::array<std::vector<double>, 3> coord{};
         std::vector<double> md{};
+
+        /// Per-COMPTRAJ-record parameters retained at parse time so the
+        /// trajectory connections can be recomputed against a different (e.g.
+        /// refined) grid. Mirrors the items consumed by loadCOMPTRAJ.
+        struct TrajPerf {
+            double perf_top{};
+            double perf_bot{};
+            double rw{};
+            double skin_factor{};
+            double d_factor{};
+            double user_Kh{-1.0};        //!< explicit Kh, or < 0 if defaulted
+            double user_CF{-1.0};        //!< explicit CF, or < 0 if defaulted
+            int    sat_table_id{-1};     //!< explicit SATNUM table, or < 0 if defaulted
+            bool   default_sat_table{true};
+            Connection::State state{Connection::State::OPEN};
+
+            template <class Serializer>
+            void serializeOp(Serializer& serializer)
+            {
+                serializer(perf_top); serializer(perf_bot);
+                serializer(rw); serializer(skin_factor); serializer(d_factor);
+                serializer(user_Kh); serializer(user_CF);
+                serializer(sat_table_id); serializer(default_sat_table);
+                serializer(state);
+            }
+            bool operator==(const TrajPerf&) const = default;
+        };
+        std::vector<TrajPerf> m_traj_perfs{};
+
+        /// Shared per-cell CTF computation + connection add/update, used by both
+        /// loadCOMPTRAJ (EclipseGrid) and recomputeTrajectoryConnections (grid).
+        void addOrUpdateTrajectoryConnection(const TrajPerf&            rec,
+                                             const TrajectoryCell&      cell,
+                                             const std::array<double,3>& connection_vector);
 
         void addConnection(const int i, const int j, const int k,
                            const std::size_t global_index,

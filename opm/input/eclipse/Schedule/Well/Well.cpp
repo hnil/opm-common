@@ -70,6 +70,7 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -653,6 +654,12 @@ void Well::flag_lgr_well(void)
     ref_type = WellRefinementType::LGR;
 }
 
+void Well::unflag_lgr_well(void)
+{
+    ref_type = WellRefinementType::STANDARD;
+    lgr_tag.clear();
+}
+
 void Well::setInsertIndexLGR(const std::size_t index)
 {
     this->insert_index_lgr = index;
@@ -1066,9 +1073,22 @@ bool Well::updateAutoShutin(const bool auto_shutin)
 }
 
 
+bool Well::hasConnectionsInLgr(const int lgr_grid_number) const
+{
+    if (this->connections == nullptr) {
+        return false;
+    }
+    return std::any_of(this->connections->begin(), this->connections->end(),
+                       [lgr_grid_number](const Connection& c)
+                       { return c.get_lgr_level() == lgr_grid_number; });
+}
+
 bool Well::updateConnections(std::shared_ptr<WellConnections> connections_arg, bool force)
 {
     connections_arg->order();
+
+    // Connections may lie in several LGRs: each carries its own grid number
+    // and the simulator resolves it against that grid.
 
     if (force || (*this->connections != *connections_arg)) {
         this->connections = std::move(connections_arg);

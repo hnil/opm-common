@@ -18,6 +18,8 @@
 */
 
 #include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
+#include <opm/input/eclipse/EclipseState/Grid/Carfin.hpp>
+#include <opm/input/eclipse/EclipseState/Grid/LgrCollection.hpp>
 
 #include <opm/io/eclipse/rst/connection.hpp>
 
@@ -53,6 +55,7 @@
 #include <external/resinsight/ReservoirDataModel/RigWellPath.h>
 
 #include "../WellTraj/RigEclipseWellLogExtractor.hpp"
+#include "../WellTraj/RigEclipseWellLogExtractorGrid.hpp"
 #include "WellTrajInfo.hpp"
 
 #include <algorithm>
@@ -351,6 +354,27 @@ namespace Opm {
                               { return conn1->sort_value() < conn2->sort_value(); });
         }
 
+        return out;
+    }
+
+    std::vector<const Connection*>
+    WellConnections::output(const EclipseGrid& grid, const int lgr_grid_number) const
+    {
+        auto out = std::vector<const Connection*>{};
+        for (const auto& conn : this->m_connections) {
+            if ((conn.get_lgr_level() == lgr_grid_number) &&
+                grid.isCellActive(conn.getI(), conn.getJ(), conn.getK()))
+            {
+                out.push_back(&conn);
+            }
+        }
+        if (!this->m_connections.empty() &&
+            !this->m_connections[0].attachedToSegment() &&
+            (this->m_ordering != Connection::Order::INPUT))
+        {
+            std::ranges::sort(out, [](const Connection* a, const Connection* b)
+                              { return a->sort_value() < b->sort_value(); });
+        }
         return out;
     }
 
@@ -792,6 +816,25 @@ The cell ({},{},{}) in well {} is not active and the connection will be ignored)
         // exit cell face point and connection length.
         wellTraj.intersections = e->cellIntersectionInfosAlongWellPath();
 
+        // Retain this perforation's parameters so the trajectory connections
+        // can later be recomputed against a refined grid (see
+        // recomputeTrajectoryConnections). The trajectory geometry itself
+        // (coord/md) is already retained as member state.
+        {
+            TrajPerf rec;
+            rec.perf_top = m_top;
+            rec.perf_bot = m_bot;
+            rec.rw = rw;
+            rec.skin_factor = skin_factor;
+            rec.d_factor = d_factor;
+            rec.user_Kh = (KhItem.hasValue(0) && (KhItem.getSIDouble(0) > 0.0)) ? KhItem.getSIDouble(0) : -1.0;
+            rec.user_CF = (CFItem.hasValue(0) && (CFItem.getSIDouble(0) > 0.0)) ? CFItem.getSIDouble(0) : -1.0;
+            rec.sat_table_id = defaultSatTable ? -1 : satTableId;
+            rec.default_sat_table = defaultSatTable;
+            rec.state = state;
+            this->m_traj_perfs.push_back(rec);
+        }
+
         for (std::size_t is = 0; is < wellTraj.intersections.size(); ++is) {
             const auto ijk = ecl_grid->getIJK(wellTraj.intersections[is].globCellIndex);
 
@@ -926,6 +969,304 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
 
                 prev->updateSegment(conSegNo, cell.depth, thermal_length,
                                     css_ind, *perf_range);
+            }
+        }
+    }
+
+    bool WellConnections::hasTrajectory() const
+    {
+        return !this->coord[0].empty();
+    }
+
+    bool WellConnections::synthesizeTrajectory
+        (const std::function<std::array<double,3>(std::size_t)>& cellCenter,
+         const std::function<std::array<double,3>(std::size_t)>& cellDims)
+    {
+        if (this->hasTrajectory() || this->m_connections.empty()) {
+            return false;
+        }
+
+        // Extend each in-cell segment slightly beyond the cell faces: the
+        // intersection extractor only records cells through enter/leave face
+        // crossings, so a segment fully interior to one cell would yield no
+        // intersection at all. The sliver spilling into the face neighbours
+        // is removed by the replay's minimum-length filter.
+        constexpr double extend = 1.0 + 1.0e-6;
+
+        double total_md = 0.0;
+        auto appendPoint = [this, &total_md](const std::array<double,3>& p) {
+            if (! this->md.empty()) {
+                const auto seg = std::hypot(p[0] - this->coord[0].back(),
+                                            p[1] - this->coord[1].back(),
+                                            p[2] - this->coord[2].back());
+                if (! (seg > 0.0)) {
+                    return;     // coincident with the previous point
+                }
+                total_md += seg;
+            }
+            for (std::size_t d = 0; d < 3; ++d) {
+                this->coord[d].push_back(p[d]);
+            }
+            this->md.push_back(total_md);
+        };
+
+        for (const auto& conn : this->m_connections) {
+            auto centre = cellCenter(conn.global_index());
+            const auto dims = cellDims(conn.global_index());
+
+            const int axis = (conn.dir() == Connection::Direction::X) ? 0
+                : (conn.dir() == Connection::Direction::Y) ? 1 : 2;
+
+            // Nudge the polyline off the exact cell centre in the lateral
+            // directions, by a *different* fraction per direction. The
+            // intersection machinery triangulates each face as a fan around
+            // the face centre, and an axis-aligned path through the centre
+            // (or, with equal offsets, along the face diagonal) runs exactly
+            // on fan-triangle edges where the hit test fails erratically.
+            // Irrational-ratio offsets stay clear of the centre, the
+            // diagonals and any child-face plane of a later refinement, for
+            // every refinement factor. With an even factor they also select
+            // one child column deterministically. The Peaceman CTF is
+            // unaffected (only in-cell lengths enter, not position).
+            constexpr double nudge[3] = { 0.017259, 0.030502, 0.023607 };
+            for (int d = 0; d < 3; ++d) {
+                if (d != axis) {
+                    centre[d] += nudge[d] * dims[d];
+                }
+            }
+
+            auto entry = centre;
+            auto exit = centre;
+            entry[axis] -= 0.5 * dims[axis] * extend;
+            exit[axis] += 0.5 * dims[axis] * extend;
+
+            appendPoint(entry);
+            const double perf_top = total_md;
+            appendPoint(exit);
+            const double perf_bot = total_md;
+
+            if (! (perf_bot > perf_top)) {
+                continue;       // degenerate (zero-extent) cell
+            }
+
+            TrajPerf rec;
+            rec.perf_top = perf_top;
+            rec.perf_bot = perf_bot;
+            rec.rw = conn.rw();
+            rec.skin_factor = conn.skinFactor();
+            rec.d_factor = conn.dFactor();
+
+            // Explicit deck CF/Kh are carried through and reused verbatim by
+            // the replay (documented approximation: no per-child-length
+            // apportioning yet, plan S6c); Peaceman-computed values are left
+            // defaulted so the replay recomputes them per (refined) cell.
+            const bool deck_ctf = (conn.kind() == Connection::CTFKind::DeckValue);
+            rec.user_CF = deck_ctf ? conn.CF() : -1.0;
+            rec.user_Kh = deck_ctf ? conn.Kh() : -1.0;
+
+            rec.default_sat_table = conn.getDefaultSatTabId();
+            rec.sat_table_id = rec.default_sat_table ? -1 : conn.satTableId();
+            rec.state = conn.state();
+
+            this->m_traj_perfs.push_back(rec);
+        }
+
+        if (this->m_traj_perfs.empty()) {
+            // Nothing usable: leave the object without a trajectory.
+            for (auto& c : this->coord) { c.clear(); }
+            this->md.clear();
+            return false;
+        }
+
+        return true;
+    }
+
+    // Shared per-cell CTF/Kh computation and connection add/update for
+    // trajectory wells. Mirrors the body of loadCOMPTRAJ but is grid-agnostic:
+    // the cell geometry/properties are supplied by the caller. Used by
+    // recomputeTrajectoryConnections.
+    void WellConnections::addOrUpdateTrajectoryConnection(const TrajPerf&             rec,
+                                                          const TrajectoryCell&       cell,
+                                                          const std::array<double,3>& connection_vector_in)
+    {
+        auto ctf_props = Connection::CTFProperties{};
+        ctf_props.rw = rec.rw;
+        ctf_props.skin_factor = rec.skin_factor;
+        ctf_props.d_factor = rec.d_factor;
+
+        int satTableId = rec.sat_table_id;
+        if (rec.default_sat_table) {
+            satTableId = cell.satnum;
+        }
+
+        ctf_props.r0 = -1.0;
+        ctf_props.Kh = (rec.user_Kh > 0.0) ? rec.user_Kh : -1.0;
+        ctf_props.CF = (rec.user_CF > 0.0) ? rec.user_CF : -1.0;
+
+        const auto cell_perm = cell.perm;
+
+        auto ctf_kind = ::Opm::Connection::CTFKind::DeckValue;
+        if ((ctf_props.CF < 0.0) && (ctf_props.Kh < 0.0)) {
+            // Calculate CF and Kh from the COMPTRAJ record and cell properties.
+            ctf_kind = ::Opm::Connection::CTFKind::Defaulted;
+
+            const external::cvf::Vec3d connection_vector(connection_vector_in[0],
+                                                         connection_vector_in[1],
+                                                         connection_vector_in[2]);
+
+            const auto perm_thickness =
+                permThickness(connection_vector, cell_perm, cell.ntg);
+
+            const auto connection_factor =
+                connectionFactor(cell_perm, cell.dimensions, cell.ntg,
+                                 perm_thickness, rec.rw, rec.skin_factor);
+
+            ctf_props.connection_length = connection_vector.length();
+
+            ctf_props.CF = std::hypot(connection_factor[0],
+                                      connection_factor[1],
+                                      connection_factor[2]);
+
+            ctf_props.Kh = std::hypot(perm_thickness[0],
+                                      perm_thickness[1],
+                                      perm_thickness[2]);
+        }
+        else if (! ((ctf_props.CF > 0.0) && (ctf_props.Kh > 0.0))) {
+            throw std::logic_error("Problem recomputing COMPTRAJ connection: "
+                                   "CF and Kh must both be specified or both defaulted/negative");
+        }
+
+        const auto direction = ::Opm::Connection::Direction::Z;
+
+        ctf_props.re = -1;
+        {
+            const auto K = permComponents(direction, cell_perm);
+            ctf_props.Ke = std::sqrt(K[0] * K[1]);
+        }
+
+        const int i = cell.ijk[0];
+        const int j = cell.ijk[1];
+        const int k = cell.ijk[2];
+
+        const auto prev =
+            std::ranges::find_if(this->m_connections,
+                                 [i, j, k](const Connection& c)
+                                 { return c.sameCoordinate(i, j, k); });
+
+        if (prev == this->m_connections.end()) {
+            const std::size_t noConn = this->m_connections.size();
+            this->addConnection(i, j, k,
+                                cell.global_index, rec.state,
+                                cell.depth, ctf_props, satTableId,
+                                direction, ctf_kind,
+                                noConn, cell.lgr_grid,
+                                rec.default_sat_table);
+        }
+        else {
+            const auto compl_num = prev->complnum();
+            const auto css_ind = prev->sort_value();
+            const auto conSegNo = prev->segment();
+            const auto perf_range = prev->perf_range();
+            const auto thermal_length = prev->thermalLength();
+
+            *prev = Connection {
+                i, j, k,
+                cell.global_index, compl_num,
+                rec.state, direction, ctf_kind, satTableId,
+                cell.depth, ctf_props,
+                css_ind, rec.default_sat_table, cell.lgr_grid
+            };
+
+            prev->updateSegment(conSegNo, cell.depth, thermal_length,
+                                css_ind, *perf_range);
+        }
+    }
+
+    void WellConnections::recomputeTrajectoryConnections
+        (const std::vector<std::array<std::array<double,3>, 8>>&          cellCorners,
+         const std::function<std::optional<TrajectoryCell>(std::size_t)>& cellInfo)
+    {
+        if (!this->hasTrajectory() || this->m_traj_perfs.empty()) {
+            return;
+        }
+
+        // Convert the supplied (plain double) corner geometry to the cvf type
+        // used by the ResInsight intersection machinery, once.
+        std::vector<std::array<external::cvf::Vec3d, 8>> cornersCvf;
+        cornersCvf.reserve(cellCorners.size());
+        for (const auto& c : cellCorners) {
+            std::array<external::cvf::Vec3d, 8> cc;
+            for (std::size_t l = 0; l < 8; ++l) {
+                cc[l] = external::cvf::Vec3d(c[l][0], c[l][1], c[l][2]);
+            }
+            cornersCvf.push_back(cc);
+        }
+
+        // Rebuild the trajectory connections against the supplied grid.
+        this->m_connections.clear();
+
+        external::cvf::ref<external::cvf::BoundingBoxTree> cellSearchTree;
+
+        for (const auto& rec : this->m_traj_perfs) {
+            // Reconstruct the well path geometry for this perforation interval,
+            // exactly as loadCOMPTRAJ does.
+            std::vector<external::cvf::Vec3d> points;
+            std::vector<double>               measured_depths;
+
+            external::cvf::Vec3d p_top, p_bot;
+            for (std::size_t i = 0; i < 3; ++i) {
+                p_top[i] = linearInterpolation(this->md, this->coord[i], rec.perf_top);
+                p_bot[i] = linearInterpolation(this->md, this->coord[i], rec.perf_bot);
+            }
+
+            points.reserve(this->coord[0].size() + 2);
+            measured_depths.reserve(this->coord[0].size() + 2);
+
+            points.push_back(p_top);
+            measured_depths.push_back(rec.perf_top);
+            for (std::size_t i = 0; i < this->coord[0].size(); ++i) {
+                if ((this->md[i] > rec.perf_top) && (this->md[i] < rec.perf_bot)) {
+                    points.push_back(external::cvf::Vec3d(this->coord[0][i],
+                                                          this->coord[1][i],
+                                                          this->coord[2][i]));
+                    measured_depths.push_back(this->md[i]);
+                }
+            }
+            points.push_back(p_bot);
+            measured_depths.push_back(rec.perf_bot);
+
+            external::cvf::ref<external::RigWellPath> wellPathGeometry {
+                new external::RigWellPath
+            };
+            wellPathGeometry->setWellPathPoints(points);
+            wellPathGeometry->setMeasuredDepths(measured_depths);
+
+            external::RigEclipseWellLogExtractorGrid e {
+                wellPathGeometry.p(), cornersCvf, cellSearchTree
+            };
+            cellSearchTree = e.getCellSearchTree();
+
+            const auto intersections = e.cellIntersectionInfosAlongWellPath();
+
+            for (const auto& is : intersections) {
+                const auto info = cellInfo(is.globCellIndex);
+                if (! info.has_value()) {
+                    continue;   // inactive / absent cell -> skip
+                }
+
+                // Skip slivers where the path merely grazes a cell (e.g. the
+                // deliberate 1e-6 overshoot of synthesized COMPDAT segments
+                // into the face neighbours): they would become spurious
+                // near-zero-CF connections.
+                if (! ((is.endMD - is.startMD) >
+                       1.0e-4 * (rec.perf_bot - rec.perf_top)))
+                {
+                    continue;
+                }
+
+                const auto& v = is.intersectionLengthsInCellCS;
+                this->addOrUpdateTrajectoryConnection(rec, *info,
+                                                      {v[0], v[1], v[2]});
             }
         }
     }
@@ -1183,4 +1524,163 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
 
         return { connPos->complnum() };
     }
+
+namespace {
+
+    // One refined column of a box in one direction: its local index and the
+    // fraction of the parent cell it covers.
+    struct RefinedCol { int local; double fracLo; double fracHi; };
+
+    std::vector<RefinedCol> columnsOfParent(const Carfin& box, const std::size_t dim,
+                                            const int parentOffset)
+    {
+        const auto cols = box.refinedColumns(dim);
+        std::vector<RefinedCol> out;
+        if (! cols.count.empty()) {
+            const int first = cols.firstColumn[parentOffset];
+            for (int c = 0; c < cols.count[parentOffset]; ++c) {
+                out.push_back({ first + c, cols.fracLo[first + c], cols.fracHi[first + c] });
+            }
+            return out;
+        }
+        const int lo = (dim == 0) ? box.I1() : (dim == 1) ? box.J1() : box.K1();
+        const int hi = (dim == 0) ? box.I2() : (dim == 1) ? box.J2() : box.K2();
+        const int n  = (dim == 0) ? box.NX() : (dim == 1) ? box.NY() : box.NZ();
+        const int f  = n / (hi - lo + 1);
+        for (int c = 0; c < f; ++c) {
+            out.push_back({ parentOffset * f + c, double(c) / f, double(c + 1) / f });
+        }
+        return out;
+    }
+
+    struct Placed {
+        std::string lgr;
+        std::array<int,3> ijk{};
+        double fracAlong{1.0};      // share of the parent's length along the connection
+        double fracLateral{1.0};    // product of the lateral shares
+        std::array<int,3> dims{};   // the LGR's dimensions, for a local Cartesian index
+    };
+
+    // Place a cell given in `box`'s parent coordinates into `box` and, where a
+    // nested box covers the result, into that one: the centre column laterally,
+    // every column along `axis`.
+    void placeInBox(const LgrCollection& lgrs, const Carfin& box,
+                    const std::array<int,3>& parentCell, const int axis,
+                    double fracAlong, double fracLateral, std::vector<Placed>& out)
+    {
+        const std::array<int,3> lo{ box.I1(), box.J1(), box.K1() };
+        const std::array<int,3> dims{ box.NX(), box.NY(), box.NZ() };
+        std::array<std::vector<RefinedCol>,3> cols;
+        for (std::size_t d = 0; d < 3; ++d) {
+            cols[d] = columnsOfParent(box, d, parentCell[d] - lo[d]);
+        }
+        // Lateral directions: the centre column (the upper-middle one for an
+        // even count, which is the child on the +side of the well's face).
+        std::array<int,3> fixedIdx{};
+        double lateral = fracLateral;
+        for (int d = 0; d < 3; ++d) {
+            if (d == axis) continue;
+            const auto& c = cols[d][cols[d].size() / 2];
+            fixedIdx[d] = c.local;
+            lateral *= (c.fracHi - c.fracLo);
+        }
+        for (const auto& c : cols[axis]) {
+            std::array<int,3> ijk = fixedIdx;
+            ijk[axis] = c.local;
+            const double along = fracAlong * (c.fracHi - c.fracLo);
+            bool nested = false;
+            for (std::size_t i = 0; i < lgrs.size(); ++i) {
+                const auto& child = lgrs.getLgr(i);
+                if (child.PARENT_NAME() != box.NAME()) continue;
+                if (ijk[0] >= child.I1() && ijk[0] <= child.I2() &&
+                    ijk[1] >= child.J1() && ijk[1] <= child.J2() &&
+                    ijk[2] >= child.K1() && ijk[2] <= child.K2()) {
+                    placeInBox(lgrs, child, ijk, axis, along, lateral, out);
+                    nested = true;
+                    break;
+                }
+            }
+            if (! nested) {
+                out.push_back({ box.NAME(), ijk, along, lateral, dims });
+            }
+        }
+    }
+
+} // anonymous namespace
+
+    bool WellConnections::refineIntoLgrs(const LgrCollection& lgrs,
+                                         const std::function<int(const std::string&)>& gridNumberOf,
+                                         std::set<std::string>& lgrNames)
+    {
+        if (lgrs.size() == 0 || this->m_connections.empty()) {
+            return false;
+        }
+        std::vector<Connection> refined;
+        bool changed = false;
+        for (const auto& conn : this->m_connections) {
+            const Carfin* top = nullptr;
+            if (conn.get_lgr_level() == 0) {
+                for (std::size_t i = 0; i < lgrs.size(); ++i) {
+                    const auto& box = lgrs.getLgr(i);
+                    if (box.PARENT_NAME() != "GLOBAL") continue;
+                    if (conn.getI() >= box.I1() && conn.getI() <= box.I2() &&
+                        conn.getJ() >= box.J1() && conn.getJ() <= box.J2() &&
+                        conn.getK() >= box.K1() && conn.getK() <= box.K2()) {
+                        top = &box;
+                        break;
+                    }
+                }
+            }
+            if (top == nullptr) {
+                refined.push_back(conn);
+                continue;
+            }
+            const int axis = (conn.dir() == Connection::Direction::X) ? 0
+                : (conn.dir() == Connection::Direction::Y) ? 1 : 2;
+            std::vector<Placed> placed;
+            placeInBox(lgrs, *top, { conn.getI(), conn.getJ(), conn.getK() }, axis, 1.0, 1.0, placed);
+            for (const auto& pl : placed) {
+                auto props = conn.ctfProperties();
+                const double r0Old = props.r0;
+                props.Kh *= pl.fracAlong;
+                props.connection_length *= pl.fracAlong;
+                props.r0 *= std::sqrt(pl.fracLateral);
+                props.re *= std::sqrt(pl.fracLateral);
+                if (conn.kind() == Connection::CTFKind::DeckValue) {
+                    // The deck's number is honoured in total: split by length.
+                    props.CF *= pl.fracAlong;
+                }
+                else {
+                    // Peaceman: CF ~ Kh / (ln(r0/rw) + S), with r0 following
+                    // the child's lateral size.
+                    const double denomOld = (props.peaceman_denom > 0.0)
+                        ? props.peaceman_denom
+                        : ((r0Old > props.rw && props.rw > 0.0) ? std::log(r0Old / props.rw) + props.skin_factor : 0.0);
+                    const double denomNew = (props.r0 > props.rw && props.rw > 0.0)
+                        ? std::log(props.r0 / props.rw) + props.skin_factor : 0.0;
+                    props.CF *= pl.fracAlong;
+                    if (denomOld > 0.0 && denomNew > 0.0) {
+                        props.CF *= denomOld / denomNew;
+                        props.peaceman_denom = denomNew;
+                    }
+                }
+                const std::size_t localCart = static_cast<std::size_t>(pl.ijk[0])
+                    + static_cast<std::size_t>(pl.ijk[1]) * pl.dims[0]
+                    + static_cast<std::size_t>(pl.ijk[2]) * pl.dims[0] * pl.dims[1];
+                refined.emplace_back(pl.ijk[0], pl.ijk[1], pl.ijk[2], localCart,
+                                     static_cast<int>(refined.size()) + 1,
+                                     conn.state(), conn.dir(), conn.kind(),
+                                     conn.satTableId(), conn.depth(), props,
+                                     conn.sort_value(), conn.getDefaultSatTabId(),
+                                     gridNumberOf(pl.lgr));
+                lgrNames.insert(pl.lgr);
+                changed = true;
+            }
+        }
+        if (changed) {
+            this->m_connections = std::move(refined);
+        }
+        return changed;
+    }
+
 }

@@ -18,6 +18,7 @@
 */
 
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
+#include <opm/input/eclipse/EclipseState/Grid/LgrCollection.hpp>
 
 #include <opm/io/eclipse/rst/state.hpp>
 
@@ -110,6 +111,7 @@
 #include "Well/injection.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <ctime>
 #include <limits>
@@ -117,7 +119,9 @@
 #include <initializer_list>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -1351,6 +1355,159 @@ Defaulted grid coordinates is not allowed for COMPDAT as part of ACTIONX)"
 
     std::vector<Well> Schedule::getWellsatEnd() const {
         return this->getWells(this->snapshots.size() - 1);
+    }
+
+    void Schedule::refineConnectionsIntoLgrs(const LgrCollection& lgrs)
+    {
+        if (lgrs.size() == 0) {
+            return;
+        }
+        auto gridNumberOf = [&lgrs](const std::string& name) {
+            for (std::size_t i = 0; i < lgrs.size(); ++i) {
+                if (lgrs.getLgr(i).NAME() == name) {
+                    return static_cast<int>(i) + 1;
+                }
+            }
+            throw std::logic_error("Unknown LGR " + name);
+        };
+        for (auto& snapshot : this->snapshots) {
+            for (const auto& wname : snapshot.wells.keys()) {
+                auto well = snapshot.wells.get(wname);
+                if (well.getConnections().hasTrajectory()) {
+                    continue;
+                }
+                auto conns = std::make_shared<WellConnections>(well.getConnections());
+                std::set<std::string> lgrNames;
+                if (! conns->refineIntoLgrs(lgrs, gridNumberOf, lgrNames)) {
+                    continue;
+                }
+                // The well is tagged with the LGR of its first refined connection;
+                // every connection carries its own grid number regardless.
+                for (const auto& c : *conns) {
+                    if (c.get_lgr_level() > 0) {
+                        well.flag_lgr_well();
+                        well.set_lgr_well_tag(lgrs.getLgr(c.get_lgr_level() - 1).NAME());
+                        well.updateHead(c.getI(), c.getJ());
+                        break;
+                    }
+                }
+                well.updateConnections(std::move(conns), /*force=*/ true);
+                snapshot.wells.update(std::move(well));
+            }
+        }
+    }
+
+    void Schedule::recomputeTrajectoryConnections
+        (const std::vector<std::array<std::array<double,3>, 8>>&                          cellCorners,
+         const std::function<std::optional<WellConnections::TrajectoryCell>(std::size_t)>& cellInfo)
+    {
+        for (auto& snapshot : this->snapshots) {
+            for (const auto& wname : snapshot.wells.keys()) {
+                auto well = snapshot.wells.get(wname);
+
+                if (! well.getConnections().hasTrajectory()) {
+                    continue;
+                }
+
+                // Recompute on a fresh copy of the connection set; collect the
+                // LGRs the intersected cells belong to so the well can be tagged.
+                auto conns = std::make_shared<WellConnections>(well.getConnections());
+
+                std::set<std::string> lgrNames;
+                conns->recomputeTrajectoryConnections(
+                    cellCorners,
+                    [&cellInfo, &lgrNames](std::size_t idx)
+                        -> std::optional<WellConnections::TrajectoryCell>
+                    {
+                        auto info = cellInfo(idx);
+                        if (info.has_value() && ! info->lgr_name.empty()) {
+                            lgrNames.insert(info->lgr_name);
+                        }
+                        return info;
+                    });
+
+                // Nothing intersected against this grid (e.g. the well's cells
+                // are not present on this rank): keep the original connections.
+                if (conns->empty()) {
+                    continue;
+                }
+
+                if (lgrNames.size() == 1) {
+                    // First implementation: the whole trajectory lies in one LGR.
+                    // flag_lgr_well() sets ref_type to LGR, which is what
+                    // is_lgr_well()/get_lgr_well_tag() key on; set_lgr_well_tag
+                    // alone is not enough.
+                    well.flag_lgr_well();
+                    well.set_lgr_well_tag(*lgrNames.begin());
+
+                    // An LGR well's head must be in LGR-local coordinates: the
+                    // output path (AggregateWellData::staticContribWellHeadLGR)
+                    // maps it back to the father cell via getLGR_fatherIJK, which
+                    // asserts the head lies inside the (refined) LGR grid. The
+                    // trajectory's first connection gives a valid LGR-local head.
+                    const auto& c0 = (*conns)[0];
+                    well.updateHead(c0.getI(), c0.getJ());
+                }
+                else if (lgrNames.size() > 1) {
+                    OpmLog::warning(fmt::format(
+                        "Well {} trajectory crosses {} LGRs; connections in "
+                        "refined regions are only supported within a single LGR "
+                        "and will not be resolved correctly.",
+                        wname, lgrNames.size()));
+                }
+                else if (well.is_lgr_well()) {
+                    // The replay landed entirely on unrefined cells (the LGR
+                    // the well used to sit in is gone, e.g. LGROFF): revert to
+                    // a standard global-grid well, mirroring the flag branch.
+                    well.unflag_lgr_well();
+                    const auto& c0 = (*conns)[0];
+                    well.updateHead(c0.getI(), c0.getJ());
+                }
+
+                well.updateConnections(std::move(conns), /*force=*/ true);
+                snapshot.wells.update(std::move(well));
+            }
+        }
+    }
+
+    void Schedule::synthesizeWellTrajectories
+        (const std::function<std::array<double,3>(std::size_t)>& cellCenter,
+         const std::function<std::array<double,3>(std::size_t)>& cellDims)
+    {
+        std::set<std::string> warned;
+
+        for (auto& snapshot : this->snapshots) {
+            for (const auto& wname : snapshot.wells.keys()) {
+                auto well = snapshot.wells.get(wname);
+
+                const auto& conns0 = well.getConnections();
+                if (conns0.hasTrajectory() || conns0.empty()) {
+                    continue;
+                }
+
+                // The trajectory replay rebuilds the connection set from
+                // scratch; it cannot preserve segment attachments, and LGR
+                // wells' connection ijk are LGR-local (not resolvable through
+                // the global-grid geometry callbacks).
+                if (well.isMultiSegment() || well.is_lgr_well()) {
+                    if (warned.insert(wname).second) {
+                        OpmLog::warning(fmt::format(
+                            "Well {} is a {} well; no trajectory is synthesized "
+                            "and its connections will not follow grid refinement.",
+                            wname, well.isMultiSegment() ? "multi-segment" : "LGR"));
+                    }
+                    continue;
+                }
+
+                auto conns = std::make_shared<WellConnections>(conns0);
+                if (! conns->synthesizeTrajectory(cellCenter, cellDims)) {
+                    continue;
+                }
+
+                well.updateConnections(std::move(conns), /*force=*/ true);
+                snapshot.wells.update(std::move(well));
+            }
+        }
     }
 
     std::vector<Well> Schedule::getActiveWellsAtEnd() const {

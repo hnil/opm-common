@@ -107,6 +107,7 @@ public:
     using GasInflowEquation = WellGasInflowEquation;
 
     void flag_lgr_well();
+    void unflag_lgr_well();
     void set_lgr_well_tag(const std::string& lgr_tag_name);
     void setInsertIndexLGR(const std::size_t index);
     void setInsertIndexAllLGR(const std::size_t index);
@@ -115,6 +116,8 @@ public:
     std::size_t seqIndexAllLGR() const { return insert_index_all_lgr; }
 
     bool is_lgr_well() const;
+    /// Whether any connection carries this LGR grid number (deck number).
+    bool hasConnectionsInLgr(int lgr_grid_number) const;
     std::optional<std::string> get_lgr_well_tag() const;
     struct WellGuideRate {
         bool available;
