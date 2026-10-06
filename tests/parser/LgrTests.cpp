@@ -516,8 +516,13 @@ SCHEDULE
     Opm::Parser parser;
     Opm::Deck deck = parser.parseString(deck_string);
     Opm::EclipseState state(deck);
-    [[maybe_unused]] Opm::LgrCollection lgrs = state.getLgrs();
-    // LGR Inactive Cells Not yet Implemented
+
+    // The block's ACTNUM removes the second refined cell.
+    const auto& lgrGrid = state.getInputGrid().getLGRCell("LGR1");
+    BOOST_CHECK_EQUAL(lgrGrid.getNumActive(), 8U);
+    BOOST_CHECK(!lgrGrid.cellActive(1));
+    const auto& removed = state.getLgrs().getLgr("LGR1").minpvRemoved();
+    BOOST_CHECK_EQUAL(std::count(removed.begin(), removed.end(), 1), 1);
 }
 
 namespace {
@@ -598,4 +603,12 @@ MULTIPLY
 
     // The global grid is not affected.
     BOOST_CHECK_CLOSE(fp.get_double("PORO")[4], 0.2, 1e-10);
+}
+
+BOOST_AUTO_TEST_CASE(TestLgrBlockActnumEmptiesHost) {
+    const auto deck = Opm::Parser{}.parseString(blockDeck(R"(
+ACTNUM
+  9*0 /
+)"));
+    BOOST_CHECK_THROW(Opm::EclipseState{deck}, std::exception);
 }
