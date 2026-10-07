@@ -71,22 +71,24 @@ namespace {
         const auto& wellName = well.name();
         const auto  wellID   = global_grid ? well.seqIndex() : well.seqIndexLGR();
         const auto  isProd   = well.isProducer();
-        const auto* lgrid    = well.is_lgr_well()
-            ? &grid.getLGRCell(well.get_lgr_well_tag().value())
-            : &grid;
+        const auto conns = well.is_lgr_well()
+            ? well.getConnections().outputAllGrids(grid)
+            : well.getConnections().output(grid);
 
         std::size_t connID = 0;
         bool skip_connection = false;
         int connection_counter = 0;
         std::string last_connection_lgr_tag = "";
-        for (const auto* connPtr : well.getConnections().output(*lgrid)) {
+        for (const auto* connPtr : conns) {
             if (connPtr->kind() == Opm::Connection::CTFKind::DynamicFracturing) {
                 // Don't emit, or count, connections created by dynamic fracturing.
                 continue;
             }
-            std::string current_lgr_lgr_tag = well.get_lgr_well_tag().value_or("");
+            // A connection in the global grid is always written, also for an LGR well.
+            std::string current_lgr_lgr_tag = (connPtr->get_lgr_level() > 0)
+                ? well.get_lgr_well_tag().value_or("") : "";
 
-            if (well.is_lgr_well()) {
+            if (well.is_lgr_well() && !current_lgr_lgr_tag.empty()) {
                 if ((current_lgr_lgr_tag == last_connection_lgr_tag) and (connection_counter > 0)) {
                     // After the first connection of a LGR well, subsequent connections of the same well are skipped.
                     skip_connection = true;

@@ -402,18 +402,38 @@ namespace {
                                 const   std::vector<int>&               cartesian_fathers,
                                 const ::Opm::EclipseGrid&               grid,
                                 const ::Opm::EclipseGridLGR&            lgr_grid,
+                                const ::Opm::FieldPropsManager&         fp,
                                       ::Opm::EclIO::OutputStream::Init& initFile)
 
     {
         auto local_porv = VectorUtil::filterArray(porv, cartesian_fathers);
 
+        // A block's own PORO, NTG or MULTPV scale the share, as in the simulator.
+        auto ratio = [&](const std::size_t cell) {
+            double r = 1.0;
+            for (const auto* name : { "PORO", "NTG", "MULTPV" }) {
+                const auto* own = fp.lgr_double(lgr_grid.get_lgr_tag(), name);
+                if (own == nullptr) {
+                    continue;
+                }
+                const auto inherited = fp.has_double(name)
+                    ? fp.get_double(name)[grid.activeIndex(cartesian_fathers[cell])] : 1.0;
+                r = (inherited > 0.0) ? r * ((*own)[cell] / inherited) : 0.0;
+            }
+            return r;
+        };
+
         for (auto cell = 0*local_porv.size(); cell < local_porv.size(); ++cell) {
+            if (!lgr_grid.cellActive(cell)) {
+                local_porv[cell] = 0.0;  // the block's MINPV or ACTNUM removed it
+                continue;
+            }
             if (local_porv[cell] == 0.0) {
                 continue;               // inactive father: nothing to share out
             }
             const auto fatherVolume = grid.getCellVolume(cartesian_fathers[cell]);
             local_porv[cell] *= (fatherVolume > 0.0)
-                ? (lgr_grid.getCellVolume(cell) / fatherVolume)
+                ? (lgr_grid.getCellVolume(cell) / fatherVolume) * ratio(cell)
                 : 0.0;
         }
 
@@ -437,6 +457,10 @@ namespace {
         fp.get_int("FIPNUM");
 
         for (const auto& keyword : fp.keys<int>()) {
+            // OPM extensions such as STRESSEQUILNUM exceed the 8-character array name.
+            if (keyword.size() > 8) {
+                continue;
+            }
             initFile.write(keyword, fp.get_int(keyword));
         }
     }
@@ -455,6 +479,9 @@ namespace {
         const auto& fp = es.globalFieldProps();
 
         for (const auto& keyword : fp.keys<int>()) {
+            if (keyword.size() > 8) {
+                continue;
+            }
             auto data = fp.get_int(keyword);
             initFile.write(keyword, VectorUtil::filterArray(data,active_fathers));
         }
@@ -577,6 +604,7 @@ namespace {
     void writeCellPropertiesValuesOnlyLGRCell(const Properties&               propList,
                                               const ::Opm::FieldPropsManager& fp,
                                               const std::vector<int>&         active_fathers,
+                                              const ::Opm::EclipseGridLGR*    lgr_grid,
                                               WriteVector&&                   write)
     {
         for (const auto& prop : propList) {
@@ -586,6 +614,13 @@ namespace {
 
             auto data = VectorUtil::filterArray(fp.get_double(prop.name),
                                                                    active_fathers);
+            const auto* own = (lgr_grid == nullptr) ? nullptr
+                : fp.lgr_double(lgr_grid->get_lgr_tag(), prop.name);
+            if (own != nullptr) {
+                for (auto cell = 0*data.size(); cell < data.size(); ++cell) {
+                    data[cell] = (*own)[lgr_grid->getGlobalIndex(cell)];
+                }
+            }
             write(prop, std::move(data));
         }
     }
@@ -634,7 +669,8 @@ namespace {
                                           const ::Opm::UnitSystem&             units,
                                           const bool                           needDflt,
                                           ::Opm::EclIO::OutputStream::Init&    initFile,
-                                          const std::vector<int>&              active_fathers)
+                                          const std::vector<int>&              active_fathers,
+                                          const ::Opm::EclipseGridLGR*         lgr_grid = nullptr)
     {
         if (needDflt) {
             writeCellDoublePropertiesWithDefaultFlagLGRCell(propList, fp, active_fathers,
@@ -659,7 +695,7 @@ namespace {
             });
         }
         else {
-            writeCellPropertiesValuesOnlyLGRCell(propList, fp, active_fathers,
+            writeCellPropertiesValuesOnlyLGRCell(propList, fp, active_fathers, lgr_grid,
                 [&units, &initFile](const CellProperty&   prop,
                                     std::vector<double>&& value)
             {
@@ -672,7 +708,8 @@ namespace {
     void writeDoubleCellProperties(const ::Opm::EclipseState&        es,
                                    const ::Opm::UnitSystem&          units,
                                    ::Opm::EclIO::OutputStream::Init& initFile,
-                                   std::optional<std::reference_wrapper<const std::vector<int>>> active_fathers = std::nullopt)
+                                   std::optional<std::reference_wrapper<const std::vector<int>>> active_fathers = std::nullopt,
+                                   const ::Opm::EclipseGridLGR*      lgr_grid = nullptr)
     {
         const auto doubleKeywords = Properties {
             // do not reorder the fields below
@@ -707,7 +744,8 @@ namespace {
         }
         else
         {
-            writeDoubleCellPropertiesLGRCell(doubleKeywords, fp, units, false, initFile, active_fathers.value());
+            writeDoubleCellPropertiesLGRCell(doubleKeywords, fp, units, false, initFile,
+                                             active_fathers.value(), lgr_grid);
         }
     }
 
@@ -991,9 +1029,10 @@ namespace {
                 std::vector<int> cartesian_fathers = lgr_grid.getLGRCell_global_father(grid);
                 std::vector<int> active_fathers = lgr_grid.getLGRCell_active_father(grid);
                 writeInitFileHeaderLGRCell(es, lgr_grid, schedule, initFile, deckIdx+1);
-                writePoreVolumeLGRCell(porv, cartesian_fathers, grid, lgr_grid, initFile);
+                writePoreVolumeLGRCell(porv, cartesian_fathers, grid, lgr_grid,
+                                       es.globalFieldProps(), initFile);
                 writeGridGeometryLGRCell(grid, lgr_grid, units, initFile);
-                writeDoubleCellProperties(es, units, initFile, active_fathers);
+                writeDoubleCellProperties(es, units, initFile, active_fathers, &lgr_grid);
                 const auto& simProp = fullProperties ? simProps[deckIdx + 1] : simProps[0];
                 writeSimulatorPropertiesLGRCell(fullProperties ? lgr_grid : grid, simProp, initFile, active_fathers, fullProperties);
                 {
