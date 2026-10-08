@@ -114,6 +114,7 @@ list(APPEND MAIN_SOURCE_FILES
   opm/input/eclipse/EclipseState/Grid/Carfin.cpp
   opm/input/eclipse/EclipseState/Grid/CarfinManager.cpp
   opm/input/eclipse/EclipseState/Grid/LgrCollection.cpp
+  opm/input/eclipse/EclipseState/Grid/LgrConnectionCheck.cpp
   opm/input/eclipse/EclipseState/Grid/WellRefinement.cpp
   opm/input/eclipse/EclipseState/Grid/EclipseGrid.cpp
   opm/input/eclipse/EclipseState/Grid/FieldData.cpp
@@ -1019,6 +1020,7 @@ list(APPEND PUBLIC_HEADER_FILES
   opm/input/eclipse/EclipseState/Grid/GridDims.hpp
   opm/input/eclipse/EclipseState/Grid/Keywords.hpp
   opm/input/eclipse/EclipseState/Grid/LgrCollection.hpp
+  opm/input/eclipse/EclipseState/Grid/LgrConnectionCheck.hpp
   opm/input/eclipse/EclipseState/Grid/MULTREGTScanner.hpp
   opm/input/eclipse/EclipseState/Grid/MapAxes.hpp
   opm/input/eclipse/EclipseState/Grid/MinpvMode.hpp
