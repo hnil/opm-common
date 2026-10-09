@@ -415,6 +415,7 @@ namespace Opm {
     }
 
     void EclipseState::initLgrs(const Deck& deck) {
+        m_wellRefinement = deck.hasKeyword("WELLREF");
         if (!DeckSection::hasGRID(deck))
             return;
 
