@@ -55,6 +55,7 @@
 #include <external/resinsight/ReservoirDataModel/RigWellPath.h>
 
 #include "../WellTraj/RigEclipseWellLogExtractor.hpp"
+#include "../WellTraj/RigEclipseWellLogExtractorGrid.hpp"
 #include "WellTrajInfo.hpp"
 
 #include <algorithm>
@@ -849,6 +850,25 @@ The cell ({},{},{}) in well {} is not active and the connection will be ignored)
         // exit cell face point and connection length.
         wellTraj.intersections = e->cellIntersectionInfosAlongWellPath();
 
+        // Retain this perforation's parameters so the trajectory connections
+        // can later be recomputed against a refined grid (see
+        // recomputeTrajectoryConnections). The trajectory geometry itself
+        // (coord/md) is already retained as member state.
+        {
+            TrajPerf rec;
+            rec.perf_top = m_top;
+            rec.perf_bot = m_bot;
+            rec.rw = rw;
+            rec.skin_factor = skin_factor;
+            rec.d_factor = d_factor;
+            rec.user_Kh = (KhItem.hasValue(0) && (KhItem.getSIDouble(0) > 0.0)) ? KhItem.getSIDouble(0) : -1.0;
+            rec.user_CF = (CFItem.hasValue(0) && (CFItem.getSIDouble(0) > 0.0)) ? CFItem.getSIDouble(0) : -1.0;
+            rec.sat_table_id = defaultSatTable ? -1 : satTableId;
+            rec.default_sat_table = defaultSatTable;
+            rec.state = state;
+            this->m_traj_perfs.push_back(rec);
+        }
+
         for (std::size_t is = 0; is < wellTraj.intersections.size(); ++is) {
             const auto ijk = ecl_grid->getIJK(wellTraj.intersections[is].globCellIndex);
 
@@ -983,6 +1003,304 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
 
                 prev->updateSegment(conSegNo, cell.depth, thermal_length,
                                     css_ind, *perf_range);
+            }
+        }
+    }
+
+    bool WellConnections::hasTrajectory() const
+    {
+        return !this->coord[0].empty();
+    }
+
+    bool WellConnections::synthesizeTrajectory
+        (const std::function<std::array<double,3>(std::size_t)>& cellCenter,
+         const std::function<std::array<double,3>(std::size_t)>& cellDims)
+    {
+        if (this->hasTrajectory() || this->m_connections.empty()) {
+            return false;
+        }
+
+        // Extend each in-cell segment slightly beyond the cell faces: the
+        // intersection extractor only records cells through enter/leave face
+        // crossings, so a segment fully interior to one cell would yield no
+        // intersection at all. The sliver spilling into the face neighbours
+        // is removed by the replay's minimum-length filter.
+        constexpr double extend = 1.0 + 1.0e-6;
+
+        double total_md = 0.0;
+        auto appendPoint = [this, &total_md](const std::array<double,3>& p) {
+            if (! this->md.empty()) {
+                const auto seg = std::hypot(p[0] - this->coord[0].back(),
+                                            p[1] - this->coord[1].back(),
+                                            p[2] - this->coord[2].back());
+                if (! (seg > 0.0)) {
+                    return;     // coincident with the previous point
+                }
+                total_md += seg;
+            }
+            for (std::size_t d = 0; d < 3; ++d) {
+                this->coord[d].push_back(p[d]);
+            }
+            this->md.push_back(total_md);
+        };
+
+        for (const auto& conn : this->m_connections) {
+            auto centre = cellCenter(conn.global_index());
+            const auto dims = cellDims(conn.global_index());
+
+            const int axis = (conn.dir() == Connection::Direction::X) ? 0
+                : (conn.dir() == Connection::Direction::Y) ? 1 : 2;
+
+            // Nudge the polyline off the exact cell centre in the lateral
+            // directions, by a *different* fraction per direction. The
+            // intersection machinery triangulates each face as a fan around
+            // the face centre, and an axis-aligned path through the centre
+            // (or, with equal offsets, along the face diagonal) runs exactly
+            // on fan-triangle edges where the hit test fails erratically.
+            // Irrational-ratio offsets stay clear of the centre, the
+            // diagonals and any child-face plane of a later refinement, for
+            // every refinement factor. With an even factor they also select
+            // one child column deterministically. The Peaceman CTF is
+            // unaffected (only in-cell lengths enter, not position).
+            constexpr double nudge[3] = { 0.017259, 0.030502, 0.023607 };
+            for (int d = 0; d < 3; ++d) {
+                if (d != axis) {
+                    centre[d] += nudge[d] * dims[d];
+                }
+            }
+
+            auto entry = centre;
+            auto exit = centre;
+            entry[axis] -= 0.5 * dims[axis] * extend;
+            exit[axis] += 0.5 * dims[axis] * extend;
+
+            appendPoint(entry);
+            const double perf_top = total_md;
+            appendPoint(exit);
+            const double perf_bot = total_md;
+
+            if (! (perf_bot > perf_top)) {
+                continue;       // degenerate (zero-extent) cell
+            }
+
+            TrajPerf rec;
+            rec.perf_top = perf_top;
+            rec.perf_bot = perf_bot;
+            rec.rw = conn.rw();
+            rec.skin_factor = conn.skinFactor();
+            rec.d_factor = conn.dFactor();
+
+            // Explicit deck CF/Kh are carried through and reused verbatim by
+            // the replay (documented approximation: no per-child-length
+            // apportioning yet, plan S6c); Peaceman-computed values are left
+            // defaulted so the replay recomputes them per (refined) cell.
+            const bool deck_ctf = (conn.kind() == Connection::CTFKind::DeckValue);
+            rec.user_CF = deck_ctf ? conn.CF() : -1.0;
+            rec.user_Kh = deck_ctf ? conn.Kh() : -1.0;
+
+            rec.default_sat_table = conn.getDefaultSatTabId();
+            rec.sat_table_id = rec.default_sat_table ? -1 : conn.satTableId();
+            rec.state = conn.state();
+
+            this->m_traj_perfs.push_back(rec);
+        }
+
+        if (this->m_traj_perfs.empty()) {
+            // Nothing usable: leave the object without a trajectory.
+            for (auto& c : this->coord) { c.clear(); }
+            this->md.clear();
+            return false;
+        }
+
+        return true;
+    }
+
+    // Shared per-cell CTF/Kh computation and connection add/update for
+    // trajectory wells. Mirrors the body of loadCOMPTRAJ but is grid-agnostic:
+    // the cell geometry/properties are supplied by the caller. Used by
+    // recomputeTrajectoryConnections.
+    void WellConnections::addOrUpdateTrajectoryConnection(const TrajPerf&             rec,
+                                                          const TrajectoryCell&       cell,
+                                                          const std::array<double,3>& connection_vector_in)
+    {
+        auto ctf_props = Connection::CTFProperties{};
+        ctf_props.rw = rec.rw;
+        ctf_props.skin_factor = rec.skin_factor;
+        ctf_props.d_factor = rec.d_factor;
+
+        int satTableId = rec.sat_table_id;
+        if (rec.default_sat_table) {
+            satTableId = cell.satnum;
+        }
+
+        ctf_props.r0 = -1.0;
+        ctf_props.Kh = (rec.user_Kh > 0.0) ? rec.user_Kh : -1.0;
+        ctf_props.CF = (rec.user_CF > 0.0) ? rec.user_CF : -1.0;
+
+        const auto cell_perm = cell.perm;
+
+        auto ctf_kind = ::Opm::Connection::CTFKind::DeckValue;
+        if ((ctf_props.CF < 0.0) && (ctf_props.Kh < 0.0)) {
+            // Calculate CF and Kh from the COMPTRAJ record and cell properties.
+            ctf_kind = ::Opm::Connection::CTFKind::Defaulted;
+
+            const external::cvf::Vec3d connection_vector(connection_vector_in[0],
+                                                         connection_vector_in[1],
+                                                         connection_vector_in[2]);
+
+            const auto perm_thickness =
+                permThickness(connection_vector, cell_perm, cell.ntg);
+
+            const auto connection_factor =
+                connectionFactor(cell_perm, cell.dimensions, cell.ntg,
+                                 perm_thickness, rec.rw, rec.skin_factor);
+
+            ctf_props.connection_length = connection_vector.length();
+
+            ctf_props.CF = std::hypot(connection_factor[0],
+                                      connection_factor[1],
+                                      connection_factor[2]);
+
+            ctf_props.Kh = std::hypot(perm_thickness[0],
+                                      perm_thickness[1],
+                                      perm_thickness[2]);
+        }
+        else if (! ((ctf_props.CF > 0.0) && (ctf_props.Kh > 0.0))) {
+            throw std::logic_error("Problem recomputing COMPTRAJ connection: "
+                                   "CF and Kh must both be specified or both defaulted/negative");
+        }
+
+        const auto direction = ::Opm::Connection::Direction::Z;
+
+        ctf_props.re = -1;
+        {
+            const auto K = permComponents(direction, cell_perm);
+            ctf_props.Ke = std::sqrt(K[0] * K[1]);
+        }
+
+        const int i = cell.ijk[0];
+        const int j = cell.ijk[1];
+        const int k = cell.ijk[2];
+
+        const auto prev =
+            std::ranges::find_if(this->m_connections,
+                                 [i, j, k](const Connection& c)
+                                 { return c.sameCoordinate(i, j, k); });
+
+        if (prev == this->m_connections.end()) {
+            const std::size_t noConn = this->m_connections.size();
+            this->addConnection(i, j, k,
+                                cell.global_index, rec.state,
+                                cell.depth, ctf_props, satTableId,
+                                direction, ctf_kind,
+                                noConn, cell.lgr_grid,
+                                rec.default_sat_table);
+        }
+        else {
+            const auto compl_num = prev->complnum();
+            const auto css_ind = prev->sort_value();
+            const auto conSegNo = prev->segment();
+            const auto perf_range = prev->perf_range();
+            const auto thermal_length = prev->thermalLength();
+
+            *prev = Connection {
+                i, j, k,
+                cell.global_index, compl_num,
+                rec.state, direction, ctf_kind, satTableId,
+                cell.depth, ctf_props,
+                css_ind, rec.default_sat_table, cell.lgr_grid
+            };
+
+            prev->updateSegment(conSegNo, cell.depth, thermal_length,
+                                css_ind, *perf_range);
+        }
+    }
+
+    void WellConnections::recomputeTrajectoryConnections
+        (const std::vector<std::array<std::array<double,3>, 8>>&          cellCorners,
+         const std::function<std::optional<TrajectoryCell>(std::size_t)>& cellInfo)
+    {
+        if (!this->hasTrajectory() || this->m_traj_perfs.empty()) {
+            return;
+        }
+
+        // Convert the supplied (plain double) corner geometry to the cvf type
+        // used by the ResInsight intersection machinery, once.
+        std::vector<std::array<external::cvf::Vec3d, 8>> cornersCvf;
+        cornersCvf.reserve(cellCorners.size());
+        for (const auto& c : cellCorners) {
+            std::array<external::cvf::Vec3d, 8> cc;
+            for (std::size_t l = 0; l < 8; ++l) {
+                cc[l] = external::cvf::Vec3d(c[l][0], c[l][1], c[l][2]);
+            }
+            cornersCvf.push_back(cc);
+        }
+
+        // Rebuild the trajectory connections against the supplied grid.
+        this->m_connections.clear();
+
+        external::cvf::ref<external::cvf::BoundingBoxTree> cellSearchTree;
+
+        for (const auto& rec : this->m_traj_perfs) {
+            // Reconstruct the well path geometry for this perforation interval,
+            // exactly as loadCOMPTRAJ does.
+            std::vector<external::cvf::Vec3d> points;
+            std::vector<double>               measured_depths;
+
+            external::cvf::Vec3d p_top, p_bot;
+            for (std::size_t i = 0; i < 3; ++i) {
+                p_top[i] = linearInterpolation(this->md, this->coord[i], rec.perf_top);
+                p_bot[i] = linearInterpolation(this->md, this->coord[i], rec.perf_bot);
+            }
+
+            points.reserve(this->coord[0].size() + 2);
+            measured_depths.reserve(this->coord[0].size() + 2);
+
+            points.push_back(p_top);
+            measured_depths.push_back(rec.perf_top);
+            for (std::size_t i = 0; i < this->coord[0].size(); ++i) {
+                if ((this->md[i] > rec.perf_top) && (this->md[i] < rec.perf_bot)) {
+                    points.push_back(external::cvf::Vec3d(this->coord[0][i],
+                                                          this->coord[1][i],
+                                                          this->coord[2][i]));
+                    measured_depths.push_back(this->md[i]);
+                }
+            }
+            points.push_back(p_bot);
+            measured_depths.push_back(rec.perf_bot);
+
+            external::cvf::ref<external::RigWellPath> wellPathGeometry {
+                new external::RigWellPath
+            };
+            wellPathGeometry->setWellPathPoints(points);
+            wellPathGeometry->setMeasuredDepths(measured_depths);
+
+            external::RigEclipseWellLogExtractorGrid e {
+                wellPathGeometry.p(), cornersCvf, cellSearchTree
+            };
+            cellSearchTree = e.getCellSearchTree();
+
+            const auto intersections = e.cellIntersectionInfosAlongWellPath();
+
+            for (const auto& is : intersections) {
+                const auto info = cellInfo(is.globCellIndex);
+                if (! info.has_value()) {
+                    continue;   // inactive / absent cell -> skip
+                }
+
+                // Skip slivers where the path merely grazes a cell (e.g. the
+                // deliberate 1e-6 overshoot of synthesized COMPDAT segments
+                // into the face neighbours): they would become spurious
+                // near-zero-CF connections.
+                if (! ((is.endMD - is.startMD) >
+                       1.0e-4 * (rec.perf_bot - rec.perf_top)))
+                {
+                    continue;
+                }
+
+                const auto& v = is.intersectionLengthsInCellCS;
+                this->addOrUpdateTrajectoryConnection(rec, *info,
+                                                      {v[0], v[1], v[2]});
             }
         }
     }
