@@ -2049,7 +2049,9 @@ File {} line {}.)", pattern, location.keyword, location.filename, location.linen
                                         newConn.dir(),
                                         newConn.kind(),
                                         seqIndex,
-                                        /* defaultSatTableID = */ false);
+                                        newConn.get_lgr_level(),
+                                        // What the call always got: the old 'false' bound to the LGR number.
+                                        /* defaultSatTableID = */ true);
 
                     // Multisegment wells: forward the segment attribution
                     // (segment number + measured-depth range) that the caller
