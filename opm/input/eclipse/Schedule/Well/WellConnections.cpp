@@ -1428,12 +1428,14 @@ CF and Kh items for well {} must both be specified or both defaulted/negative)",
         throw std::runtime_error(" the connection is not found! \n ");
     }
 
-    Connection* WellConnections::maybeGetFromGlobalIndex(const std::size_t global_index)
+    Connection* WellConnections::maybeGetFromGlobalIndex(const std::size_t global_index,
+                                                         const int lgr_level)
     {
         auto conn_iter =
             std::ranges::find_if(*this,
-                                 [global_index] (const Connection& conn)
-                                 { return conn.global_index() == global_index; });
+                                 [global_index, lgr_level] (const Connection& conn)
+                                 { return (conn.global_index() == global_index)
+                                       && (conn.get_lgr_level() == lgr_level); });
 
         if (conn_iter == this->end()) {
             return nullptr;

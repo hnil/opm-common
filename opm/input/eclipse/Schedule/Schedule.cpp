@@ -2123,7 +2123,7 @@ File {} line {}.)", pattern, location.keyword, location.filename, location.linen
             auto new_frac_wconns = std::vector<std::size_t>{};
             for (const auto& newConn : newConns) {
                 auto* existingConn = conns
-                    .maybeGetFromGlobalIndex(newConn.global_index());
+                    .maybeGetFromGlobalIndex(newConn.global_index(), newConn.get_lgr_level());
 
                 if (existingConn != nullptr) {
                     // Connection 'newConn' already exists in 'conns'.
@@ -2162,7 +2162,7 @@ File {} line {}.)", pattern, location.keyword, location.filename, location.linen
                     // connection update).
                     if (newConn.attachedToSegment()) {
                         if (auto* added =
-                                conns.maybeGetFromGlobalIndex(newConn.global_index());
+                                conns.maybeGetFromGlobalIndex(newConn.global_index(), newConn.get_lgr_level());
                             added != nullptr)
                         {
                             added->updateSegment(newConn.segment(),

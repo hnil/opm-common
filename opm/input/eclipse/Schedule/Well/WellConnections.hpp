@@ -219,7 +219,8 @@ namespace Opm {
         const Connection& getFromGlobalIndex(std::size_t global_index) const;
         const Connection& lowest() const;
         Connection& getFromIJK(const int i, const int j, const int k);
-        Connection* maybeGetFromGlobalIndex(const std::size_t global_index);
+        /// An LGR connection's global index is LGR-local, so the grid number must match too.
+        Connection* maybeGetFromGlobalIndex(const std::size_t global_index, const int lgr_level = 0);
         bool hasGlobalIndex(std::size_t global_index) const;
         double segment_perf_length(int segment) const;
 
