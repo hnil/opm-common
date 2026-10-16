@@ -431,6 +431,11 @@ BOOST_AUTO_TEST_CASE(ECL_LGRFORMATTED)
         std::vector<data::Solution> cells(num_lgr_cells+1);
         std::ranges::transform(num_cells, cells.begin(),
                                [](int n) { return mkSolution(n); });
+        for (std::size_t i = 0; i < cells.size(); ++i) {
+            cells[i].insert("STRESSXX", measure::identity,
+                            std::vector<double>(num_cells[i], 11.0 + i),
+                            data::TargetType::RESTART_OPM_EXTENDED);
+        }
         std::vector<data::Wells> wells;
         data::Wells lwells = mkWellsLGR_Global();
 
@@ -497,6 +502,13 @@ BOOST_AUTO_TEST_CASE(ECL_LGRFORMATTED)
                     BOOST_CHECK_EQUAL(lgrnames_global.size(), lgr_labels.size());
                     BOOST_CHECK_EQUAL_COLLECTIONS(lgrnames_global.begin(), lgrnames_global.end(),
                                                   expected_lgrnames_global.begin(), expected_lgrnames_global.end());
+
+                    check_vec_close(rst.getRestartData<double>("STRESSXX", 1),
+                                    std::vector<double>(num_cells[0], 11.0));
+                    for (std::size_t i = 0; i < expected_lgrnames_global.size(); ++i) {
+                        check_vec_close(rst.getRestartData<double>("STRESSXX", 1, expected_lgrnames_global[i]),
+                                        std::vector<double>(num_cells[i + 1], 12.0 + i));
+                    }
 
                     for (const auto& lgrname : expected_lgrnames_global) {
                         BOOST_CHECK_MESSAGE(rst.hasArray("LGRHEADI", 1, lgrname),

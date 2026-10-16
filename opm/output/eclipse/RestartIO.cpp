@@ -937,6 +937,10 @@ namespace {
                 ecl_compatible_rst, inteHD, norst_value, rstFile,
                 writeDorF, writeInt, writeDouble);
         }
+        else if ((norst_value == 0) && !ecl_compatible_rst) {
+            // UDQ and extra vectors are global; extended cell vectors (e.g. mechanics) are per grid.
+            writeExtendedSolutionVectors(value, writeDorF, writeInt);
+        }
     }
 
     //  Writes the solution for Global grids
