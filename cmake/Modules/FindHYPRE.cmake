@@ -9,6 +9,11 @@
 
 find_package(HYPRE CONFIG QUIET)
 
+if(TARGET HYPRE::HYPRE)
+  # Imported targets are global, but package result variables are directory-local.
+  set(HYPRE_FOUND TRUE)
+endif()
+
 if(NOT TARGET HYPRE::HYPRE)
   # Look for the header files
   find_path(HYPRE_INCLUDE_DIRS
