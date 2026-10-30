@@ -6,6 +6,7 @@ include(UseOptimization)
 include(UseRunPath)
 include(UseValgrind)
 include(UseTracy)
+include(UseCaliper)
 include(UseWarnings)
 
 # This adds all optional parameters to targets
@@ -35,6 +36,9 @@ function(opm_add_target_options)
 
   # Tracy profiler
   use_tracy(TARGET ${PARAM_TARGET})
+
+  # Caliper profiler
+  use_caliper(TARGET ${PARAM_TARGET})
 
   # Valgrind memory error checker
   use_valgrind(TARGET ${PARAM_TARGET})

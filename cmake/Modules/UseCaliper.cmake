@@ -1,0 +1,20 @@
+option(USE_CALIPER_PROFILER "Enable Caliper profiling" OFF)
+
+if(USE_CALIPER_PROFILER)
+  if(USE_TRACY_PROFILER)
+    message(FATAL_ERROR "USE_CALIPER_PROFILER and USE_TRACY_PROFILER are mutually exclusive")
+  endif()
+  find_package(caliper REQUIRED)
+endif()
+
+function(use_caliper)
+  cmake_parse_arguments(PARAM "" "TARGET" "" ${ARGN})
+  if(NOT PARAM_TARGET)
+    message(FATAL_ERROR "Function needs a TARGET parameter")
+  endif()
+
+  if(USE_CALIPER_PROFILER AND TARGET caliper)
+    target_link_libraries(${PARAM_TARGET} PUBLIC caliper)
+    target_compile_definitions(${PARAM_TARGET} PUBLIC USE_CALIPER=1)
+  endif()
+endfunction()

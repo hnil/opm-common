@@ -65,6 +65,38 @@ enum Bitfield : std::uint8_t
 #define OPM_TIMEBLOCK_LOCAL(blockname, subsys) ZoneNamedN(blockname, #blockname, DETAILED_PROFILING_SUBSYSTEMS & subsys)
 #define OPM_TIMEFUNCTION_LOCAL(subsys) ZoneNamedN(myname, __func__, DETAILED_PROFILING_SUBSYSTEMS & subsys)
 #endif
+#elif USE_CALIPER
+#include <caliper/cali.h>
+namespace Opm::detail
+{
+// Caliper has no conditional scope macro; needed for the subsystem mask.
+class CaliperScope
+{
+public:
+    CaliperScope(const char* name, bool active)
+        : name_(active ? name : nullptr)
+    {
+        if (name_) cali_begin_region(name_);
+    }
+    ~CaliperScope()
+    {
+        if (name_) cali_end_region(name_);
+    }
+    CaliperScope(const CaliperScope&) = delete;
+    CaliperScope& operator=(const CaliperScope&) = delete;
+
+private:
+    const char* name_;
+};
+} // namespace Opm::detail
+#define OPM_TIMEBLOCK(blockname) CALI_CXX_MARK_SCOPE(#blockname)
+#define OPM_TIMEFUNCTION() CALI_CXX_MARK_FUNCTION
+#if DETAILED_PROFILING
+#define OPM_TIMEBLOCK_LOCAL(blockname, subsys) \
+    ::Opm::detail::CaliperScope opm_cali_##blockname(#blockname, DETAILED_PROFILING_SUBSYSTEMS & subsys)
+#define OPM_TIMEFUNCTION_LOCAL(subsys) \
+    ::Opm::detail::CaliperScope opm_cali_function(__func__, DETAILED_PROFILING_SUBSYSTEMS & subsys)
+#endif
 #endif
 
 #ifndef OPM_TIMEBLOCK
