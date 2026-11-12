@@ -105,6 +105,11 @@ public:
                       const EOSType& eos_type,
                       int verbosity = 0)
     {
+        if constexpr (requires { FluidSystem::blackOilPvtActive(); }) {
+            if (FluidSystem::blackOilPvtActive()) {
+                return blackOilSplit_(fluid_state);
+            }
+        }
         using ScalarFluidState = CompositionalFluidState<Scalar, FluidSystem>;
         // Solve on a value-only copy; derivatives are reconstructed on the
         // caller's state after the scalar flash has converged.
@@ -186,6 +191,11 @@ public:
                                    const EOSType& eos_type,
                                    const int verbosity = 0)
     {
+        if constexpr (requires { FluidSystem::blackOilPvtActive(); }) {
+            if (FluidSystem::blackOilPvtActive()) {
+                return blackOilSplit_(fluid_state);
+            }
+        }
         const bool is_single_phase
             = flashScalar_(fluid_state, twoPhaseMethod, flash_tolerance, eos_type, verbosity)
                   .single_phase;
@@ -206,6 +216,41 @@ public:
     }
 
 protected:
+    //! Closed-form split of a stock-tank oil and surface gas mixture, with the
+    //! saturated phase compositions given by the black-oil Rs and Rv.
+    //! Returns false: the phases are labelled by construction.
+    template <class FluidState>
+    static bool blackOilSplit_(FluidState& fluid_state)
+    {
+        using Eval = typename FluidState::ValueType;
+        constexpr unsigned oilComp = FluidSystem::oilCompIdx;
+        constexpr unsigned gasComp = FluidSystem::gasCompIdx;
+        const Eval& p = fluid_state.pressure(oilPhaseIdx);
+        const Eval& T = fluid_state.temperature(oilPhaseIdx);
+        const auto [xGsat, yOsat] = FluidSystem::blackOilSaturatedFractions(T, p, /*region=*/0u);
+        const Eval& zG = fluid_state.moleFraction(gasComp);
+        const Eval yGsat = 1.0 - yOsat;
+
+        Eval L = (zG - yGsat) / (xGsat - yGsat);
+        Eval xG = xGsat;
+        Eval yG = yGsat;
+        if (L >= 1.0) {
+            L = 1.0;
+            xG = zG;
+        } else if (L <= 0.0) {
+            L = 0.0;
+            yG = zG;
+        }
+        fluid_state.setMoleFraction(oilPhaseIdx, oilComp, 1.0 - xG);
+        fluid_state.setMoleFraction(oilPhaseIdx, gasComp, xG);
+        fluid_state.setMoleFraction(gasPhaseIdx, oilComp, 1.0 - yG);
+        fluid_state.setMoleFraction(gasPhaseIdx, gasComp, yG);
+        fluid_state.setKvalue(oilComp, (1.0 - yG) / (1.0 - xG));
+        fluid_state.setKvalue(gasComp, yG / xG);
+        fluid_state.setLvalue(L);
+        return false;
+    }
+
     static constexpr std::size_t numFlashUnknowns = numMisciblePhases * numMiscibleComponents + 1;
     // x, y and L, then both phase pressures and the temperature.
     using JacobianState = std::array<Scalar, numFlashUnknowns + 3>;

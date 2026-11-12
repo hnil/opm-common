@@ -33,6 +33,8 @@
 
 #include <opm/material/Constants.hpp>
 #include <opm/material/eos/CubicEOS.hpp>
+#include <opm/material/fluidsystems/blackoilpvt/GasPvtMultiplexer.hpp>
+#include <opm/material/fluidsystems/blackoilpvt/OilPvtMultiplexer.hpp>
 #include <opm/material/fluidsystems/blackoilpvt/WaterPvtMultiplexer.hpp>
 #include <opm/material/fluidsystems/BaseFluidSystem.hpp>
 #include <opm/material/fluidsystems/PTFlashParameterCache.hpp> // TODO: this is something else need to check
@@ -47,6 +49,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 
 #include <fmt/format.h>
 
@@ -220,6 +223,57 @@ namespace Opm {
             // Init. water pvt from deck
             waterPvt_->initFromState(eclState, schedule);
 
+            initBlackOilPvt_(eclState, schedule);
+        }
+
+        //! Oil and gas properties from PVTO/PVDO and PVDG/PVTG instead of the EOS;
+        //! components are then stock-tank oil and surface gas.
+        static bool blackOilPvtActive()
+        { return blackOilPvt_; }
+
+        //! Molar volume [m^3/mol] of an oil or gas phase from the black-oil tables.
+        template <class FluidState, class LhsEval = typename FluidState::ValueType>
+        static LhsEval blackOilMolarVolume(const FluidState& fluidState,
+                                           unsigned phaseIdx,
+                                           unsigned region)
+        {
+            const LhsEval& p = decay<LhsEval>(fluidState.pressure(phaseIdx));
+            const LhsEval& T = decay<LhsEval>(fluidState.temperature(phaseIdx));
+            const LhsEval ratio = blackOilRatio_<LhsEval>(fluidState, phaseIdx, region);
+            const Scalar rhoOs = oilPvt_->oilReferenceDensity(region);
+            const Scalar rhoGs = gasPvt_->gasReferenceDensity(region);
+            LhsEval rho;
+            if (phaseIdx == oilPhaseIdx) {
+                rho = oilPvt_->inverseFormationVolumeFactor(region, T, p, ratio) * (rhoOs + ratio * rhoGs);
+            }
+            else {
+                rho = gasPvt_->inverseFormationVolumeFactor(region, T, p, ratio, LhsEval(0.0))
+                    * (rhoGs + ratio * rhoOs);
+            }
+            return decay<LhsEval>(fluidState.averageMolarMass(phaseIdx)) / rho;
+        }
+
+        //! Surface density [kg/m^3] of stock-tank oil or surface gas.
+        static Scalar blackOilReferenceDensity(unsigned phaseIdx, unsigned region)
+        {
+            return phaseIdx == oilPhaseIdx ? oilPvt_->oilReferenceDensity(region)
+                                           : gasPvt_->gasReferenceDensity(region);
+        }
+
+        /*!
+         * \brief Saturated mole fractions of the gas component in oil and of
+         *        the oil component in gas, from the saturated Rs and Rv.
+         */
+        template <class Evaluation>
+        static std::pair<Evaluation, Evaluation>
+        blackOilSaturatedFractions(const Evaluation& T, const Evaluation& p, unsigned region)
+        {
+            const Evaluation rs = oilPvt_->saturatedGasDissolutionFactor(region, T, p);
+            const Evaluation rv = gasPvt_->saturatedOilVaporizationFactor(region, T, p);
+            // moles of the other component per mole of the phase's own component
+            const Evaluation nGinO = rs * molarRatioGasToOil_(region);
+            const Evaluation nOinG = rv / molarRatioGasToOil_(region);
+            return {nGinO / (1.0 + nGinO), nOinG / (1.0 + nOinG)};
         }
 
         static void init()
@@ -231,6 +285,7 @@ namespace Opm {
             component_param_.reserve(numComponents);
             interaction_coefficients_.clear();
             lbc_coefficients_ = ViscosityModel::defaultLBCCoefficients();
+            blackOilPvt_ = false;
         }
 
         /*!
@@ -427,6 +482,16 @@ namespace Opm {
             assert(isConsistent());
             assert(phaseIdx < numPhases);
 
+            if (blackOilPvt_ && (phaseIdx == oilPhaseIdx || phaseIdx == gasPhaseIdx)) {
+                const LhsEval& p = decay<LhsEval>(fluidState.pressure(phaseIdx));
+                const LhsEval& T = decay<LhsEval>(fluidState.temperature(phaseIdx));
+                const unsigned region = paramCache.pvtRegionIndex();
+                const LhsEval ratio = blackOilRatio_<LhsEval>(fluidState, phaseIdx, region);
+                if (phaseIdx == oilPhaseIdx) {
+                    return oilPvt_->viscosity(region, T, p, ratio);
+                }
+                return gasPvt_->viscosity(region, T, p, ratio, LhsEval(0.0));
+            }
             if (phaseIdx == oilPhaseIdx || phaseIdx == gasPhaseIdx) {
                 // LBC is a reduced-density correlation, so use the physical
                 // molar density after applying SSHIFT.
@@ -580,6 +645,50 @@ namespace Opm {
             return component_param_.size() == NumComp;
         }
 
+        using OilPvt = OilPvtMultiplexer<Scalar, /*enableThermal=*/false>;
+        using GasPvt = GasPvtMultiplexer<Scalar, /*enableThermal=*/false>;
+
+        static void initBlackOilPvt_(const EclipseState& eclState, const Schedule& schedule)
+        {
+            const auto& tables = eclState.getTableManager();
+            blackOilPvt_ = NumComp == 2
+                && (tables.hasTables("PVDO") || !tables.getPvtoTables().empty());
+            if (!blackOilPvt_) {
+                return;
+            }
+            oilPvt_ = std::make_shared<OilPvt>();
+            oilPvt_->initFromState(eclState, schedule);
+            gasPvt_ = std::make_shared<GasPvt>();
+            gasPvt_->initFromState(eclState, schedule);
+            // The flash has no PVT region argument.
+            if (oilPvt_->numRegions() != 1) {
+                throw std::runtime_error("Black-oil PVT in a compositional run "
+                                         "supports a single PVT region only.");
+            }
+            OpmLog::info("Oil and gas properties come from the black-oil PVT tables; "
+                         "component 0 is stock-tank oil and component 1 surface gas.");
+        }
+
+        // Moles of gas per mole of oil in equal surface volumes.
+        static Scalar molarRatioGasToOil_(unsigned region)
+        {
+            return (gasPvt_->gasReferenceDensity(region) / molarMass(gasCompIdx))
+                 / (oilPvt_->oilReferenceDensity(region) / molarMass(oilCompIdx));
+        }
+
+        // Rs of the oil phase or Rv of the gas phase from its mole fractions.
+        template <class LhsEval, class FluidState>
+        static LhsEval blackOilRatio_(const FluidState& fluidState, unsigned phaseIdx, unsigned region)
+        {
+            constexpr Scalar tiny = 1e-20;
+            const LhsEval xO = decay<LhsEval>(fluidState.moleFraction(phaseIdx, oilCompIdx));
+            const LhsEval xG = decay<LhsEval>(fluidState.moleFraction(phaseIdx, gasCompIdx));
+            if (phaseIdx == oilPhaseIdx) {
+                return xG / (xO > tiny ? xO : LhsEval(tiny)) / molarRatioGasToOil_(region);
+            }
+            return xO / (xG > tiny ? xG : LhsEval(tiny)) * molarRatioGasToOil_(region);
+        }
+
         // Critical volume [m^3/mol] of a component. ZCRIT, when given, takes
         // precedence over VCRIT: Vc = Zc R Tc / Pc.
         static double criticalVolume_(const CompositionalConfig::EOSProps& props,
@@ -600,6 +709,9 @@ namespace Opm {
         static std::vector<Scalar> interaction_coefficients_;
         static std::array<Scalar, 5> lbc_coefficients_;
         static std::shared_ptr<WaterPvt> waterPvt_;
+        static bool blackOilPvt_;
+        static std::shared_ptr<OilPvt> oilPvt_;
+        static std::shared_ptr<GasPvt> gasPvt_;
 
     public:
         static std::string printComponentParams() {
@@ -633,6 +745,17 @@ namespace Opm {
     template <class Scalar, int NumComp, bool enableWater>
     std::shared_ptr<WaterPvtMultiplexer<Scalar> >
     GenericOilGasWaterFluidSystem<Scalar, NumComp, enableWater>::waterPvt_;
+
+    template <class Scalar, int NumComp, bool enableWater>
+    bool GenericOilGasWaterFluidSystem<Scalar, NumComp, enableWater>::blackOilPvt_ = false;
+
+    template <class Scalar, int NumComp, bool enableWater>
+    std::shared_ptr<OilPvtMultiplexer<Scalar, false>>
+    GenericOilGasWaterFluidSystem<Scalar, NumComp, enableWater>::oilPvt_;
+
+    template <class Scalar, int NumComp, bool enableWater>
+    std::shared_ptr<GasPvtMultiplexer<Scalar, false>>
+    GenericOilGasWaterFluidSystem<Scalar, NumComp, enableWater>::gasPvt_;
 
 }
 #endif // OPM_GENERIC_OIL_GAS_WATER_FLUIDSYSTEM_HPP

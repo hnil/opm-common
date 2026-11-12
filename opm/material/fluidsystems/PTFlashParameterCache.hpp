@@ -118,6 +118,16 @@ public:
         assert ((phaseIdx == static_cast<unsigned int>(oilPhaseIdx)) ||
                 (phaseIdx == static_cast<unsigned int>(gasPhaseIdx)));
 
+        if constexpr (requires { FluidSystem::blackOilPvtActive(); }) {
+            if (FluidSystem::blackOilPvtActive()) {
+                Vm_[phaseIdx] = FluidSystem::template blackOilMolarVolume<FluidState, Scalar>(
+                    fluidState, phaseIdx, pvtRegionIdx_);
+                volumeShift_[phaseIdx] = 0.0;
+                VmUpToDate_[phaseIdx] = true;
+                return;
+            }
+        }
+
         updateEosParams(fluidState, phaseIdx, exceptQuantities);
 
         // update the phase's molar volume
