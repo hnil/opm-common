@@ -458,6 +458,10 @@ namespace Opm {
         SimulatorUpdate modifyCompletions(const std::size_t reportStep,
                                           const std::map<std::string, std::vector<Connection>>& extraConns);
 
+        /// Restore saved completion sets and regenerate subsequent schedule snapshots.
+        SimulatorUpdate restoreCompletions(std::size_t reportStep,
+                                          const std::map<std::string, WellConnections>& connections);
+
         const GasLiftOpt& glo(std::size_t report_step) const;
 
         bool operator==(const Schedule& data) const;
