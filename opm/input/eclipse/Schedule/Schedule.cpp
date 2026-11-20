@@ -2287,6 +2287,19 @@ File {} line {}.)", pattern, location.keyword, location.filename, location.linen
     }
 
 
+    SimulatorUpdate Schedule::restoreCompletions(
+        const std::size_t reportStep,
+        const std::map<std::string, WellConnections>& connections)
+    {
+        for (const auto& [name, saved] : connections) {
+            this->snapshots.at(reportStep).wells.get(name).getConnections() = saved;
+        }
+        // Reuse the dynamic-completion path's future-keyword replay.
+        auto update = this->modifyCompletions(reportStep, {});
+        update.well_structure_changed = true;
+        return update;
+    }
+
     // This function will typically be called from the apply_action_callback()
     // which is invoked in a PYACTION plugin, i.e. the arguments here are
     // supplied by the user in a script - can very well be wrong.

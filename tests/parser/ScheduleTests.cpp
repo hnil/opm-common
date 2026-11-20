@@ -696,6 +696,24 @@ CSKIN
 
 } // Anonymous namespace
 
+BOOST_AUTO_TEST_CASE(RestoreDynamicCompletionsReplaysFutureKeywords)
+{
+    auto schedule = make_schedule(createDeckWithWellsAndSkinFactorChanges());
+    const auto accepted = schedule.getWell("OP_1", 1).getConnections();
+    const auto future = schedule.getWell("OP_1", 2).getConnections();
+    const auto untouched = schedule.getWell("OP_3", 2).getConnections();
+    auto changed = accepted[0];
+    changed.setCF(2 * changed.CF());
+    const auto added = schedule.getWell("OP_2", 1).getConnections()[0];
+    schedule.modifyCompletions(1, {{"OP_1", {changed, added}}});
+    BOOST_CHECK_EQUAL(schedule.getWell("OP_1", 1).getConnections().size(), accepted.size() + 1);
+    const auto update = schedule.restoreCompletions(1, {{"OP_1", accepted}});
+    BOOST_CHECK(update.well_structure_changed);
+    BOOST_CHECK(schedule.getWell("OP_1", 1).getConnections() == accepted);
+    BOOST_CHECK(schedule.getWell("OP_1", 2).getConnections() == future);
+    BOOST_CHECK(schedule.getWell("OP_3", 2).getConnections() == untouched);
+}
+
 BOOST_AUTO_TEST_CASE(CreateScheduleDeckWellsAndSkinFactorChanges)
 {
     auto metricCF = [units = Opm::UnitSystem::newMETRIC()]
